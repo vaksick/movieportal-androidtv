@@ -1,0 +1,242 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:paddingStart="96dp"
+    android:paddingTop="48dp"
+    android:paddingEnd="96dp"
+    android:paddingBottom="48dp">
+
+    <!-- Step 1: server address and device name -->
+    <ScrollView
+        android:id="@+id/screen_setup"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <TextView
+                style="@style/Text.MoviePortal.Title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/setup_title" />
+
+            <TextView
+                style="@style/Text.MoviePortal.Label"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="@string/setup_description" />
+
+            <TextView
+                style="@style/Text.MoviePortal.Label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
+                android:text="@string/setup_server_label" />
+
+            <EditText
+                android:id="@+id/setup_server"
+                style="@style/Widget.MoviePortal.Input"
+                android:layout_width="640dp"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:autofillHints="url"
+                android:hint="@string/setup_server_hint"
+                android:imeOptions="actionNext|flagNoExtractUi"
+                android:inputType="textUri"
+                android:nextFocusDown="@id/setup_device_name" />
+
+            <TextView
+                style="@style/Text.MoviePortal.Label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:labelFor="@id/setup_device_name"
+                android:text="@string/setup_device_name_label" />
+
+            <EditText
+                android:id="@+id/setup_device_name"
+                style="@style/Widget.MoviePortal.Input"
+                android:layout_width="640dp"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:importantForAutofill="no"
+                android:imeOptions="actionDone|flagNoExtractUi"
+                android:inputType="textCapSentences"
+                android:nextFocusDown="@id/setup_connect" />
+
+            <TextView
+                android:id="@+id/setup_message"
+                style="@style/Text.MoviePortal.Body"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:minHeight="28dp" />
+
+            <Button
+                android:id="@+id/setup_connect"
+                style="@style/Widget.MoviePortal.Button"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="@string/setup_connect" />
+
+            <TextView
+                style="@style/Text.MoviePortal.Body"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="32dp"
+                android:text="@string/setup_permissions_title"
+                android:textStyle="bold" />
+
+            <TextView
+                style="@style/Text.MoviePortal.Label"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:text="@string/setup_overlay_description" />
+
+            <include
+                android:id="@+id/setup_permissions"
+                layout="@layout/permissions" />
+        </LinearLayout>
+    </ScrollView>
+
+    <!-- Step 2: Quick Connect code -->
+    <LinearLayout
+        android:id="@+id/screen_quick_connect"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <TextView
+            style="@style/Text.MoviePortal.Title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/qc_title" />
+
+        <TextView
+            android:id="@+id/qc_code"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:fontFamily="monospace"
+            android:letterSpacing="0.25"
+            android:textColor="@color/accent"
+            android:textSize="120sp"
+            android:textStyle="bold" />
+
+        <TextView
+            style="@style/Text.MoviePortal.Body"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:gravity="center"
+            android:text="@string/qc_hint"
+            android:textSize="24sp" />
+
+        <TextView
+            android:id="@+id/qc_status"
+            style="@style/Text.MoviePortal.Label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:gravity="center" />
+
+        <TextView
+            android:id="@+id/qc_server"
+            style="@style/Text.MoviePortal.Label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp" />
+
+        <Button
+            android:id="@+id/qc_change_server"
+            style="@style/Widget.MoviePortal.Button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="@string/qc_change_server" />
+    </LinearLayout>
+
+    <!-- Step 3: waiting for commands -->
+    <LinearLayout
+        android:id="@+id/screen_status"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <TextView
+            style="@style/Text.MoviePortal.Title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/app_name" />
+
+        <TextView
+            android:id="@+id/status_connection"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:drawablePadding="12dp"
+            android:textSize="24sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/status_device"
+            style="@style/Text.MoviePortal.Body"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp" />
+
+        <TextView
+            android:id="@+id/status_server"
+            style="@style/Text.MoviePortal.Body"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp" />
+
+        <TextView
+            android:id="@+id/status_account"
+            style="@style/Text.MoviePortal.Body"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp" />
+
+        <TextView
+            style="@style/Text.MoviePortal.Label"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="32dp"
+            android:text="@string/status_hint" />
+
+        <include
+            android:id="@+id/status_permissions"
+            layout="@layout/permissions" />
+
+        <Space
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/status_disconnect"
+                style="@style/Widget.MoviePortal.Button"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/status_disconnect" />
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>

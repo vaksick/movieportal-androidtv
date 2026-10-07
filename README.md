@@ -1,79 +1,113 @@
-Fork of jellyfin-androidtv (commit 09c912d39226d881d657400432af6e9c26377df3), heavily modified
+# Movie Portal TV
 
-<h1 align="center">Jellyfin for Android TV</h1>
-<h3 align="center">Part of the <a href="https://jellyfin.org">Jellyfin Project</a></h3>
+Мінімальний застосунок-приймач для Android TV, що працює в парі з порталом **movie-portal**. Телевізор входить у
+прихований Jellyfin-акаунт пристрою через Quick Connect, тримає з'єднання з сервером Jellyfin у фоні й відтворює
+фільми, які користувач запускає в порталі кнопкою «Відтворити на…». Прогрес відтворення застосунок звітує серверу,
+звідки його забирає портал.
 
----
+Бібліотек, пошуку, головного екрана й інших функцій повноцінного клієнта тут свідомо немає.
 
-<p align="center">
-<img alt="Logo banner" src="https://raw.githubusercontent.com/jellyfin/jellyfin-ux/master/branding/SVG/banner-logo-solid.svg?sanitize=true"/>
-<br/><br/>
-<a href="https://github.com/jellyfin/jellyfin-androidtv">
-<img alt="GPL 2.0 License" src="https://img.shields.io/github/license/jellyfin/jellyfin-androidtv.svg"/>
-</a>
-<a href="https://github.com/jellyfin/jellyfin-androidtv/releases">
-<img alt="Current Release" src="https://img.shields.io/github/release/jellyfin/jellyfin-androidtv.svg"/>
-</a>
-<a href="https://translate.jellyfin.org/projects/jellyfin-android/jellyfin-androidtv/">
-<img alt="Translation Status" src="https://translate.jellyfin.org/widgets/jellyfin-android/-/jellyfin-androidtv/svg-badge.svg"/>
-</a>
-<br/>
-<a href="https://opencollective.com/jellyfin">
-<img alt="Donate" src="https://img.shields.io/opencollective/all/jellyfin.svg?label=backers"/>
-</a>
-<a href="https://features.jellyfin.org">
-<img alt="Feature Requests" src="https://img.shields.io/badge/fider-vote%20on%20features-success.svg"/>
-</a>
-<a href="https://matrix.to/#/+jellyfin:matrix.org">
-<img alt="Chat on Matrix" src="https://img.shields.io/matrix/jellyfin:matrix.org.svg?logo=matrix"/>
-</a>
-<br/>
-<a href="https://play.google.com/store/apps/details?id=org.jellyfin.androidtv">
-<img width="153" alt="Jellyfin on Google Play" src="https://jellyfin.org/images/store-icons/google-play.png"/>
-</a>
-<a href="https://www.amazon.com/gp/aw/d/B07TX7Z725">
-<img width="153" alt="Jellyfin on Amazon Appstore" src="https://jellyfin.org/images/store-icons/amazon.png"/>
-</a>
-<a href="https://f-droid.org/en/packages/org.jellyfin.androidtv/">
-<img width="153" alt="Jellyfin on F-Droid" src="https://jellyfin.org/images/store-icons/fdroid.png"/>
-</a>
-<br/>
-<a href="https://repo.jellyfin.org/releases/client/androidtv/">Download archive</a>
-</p>
+## Можливості
 
-Jellyfin for Android TV is a Jellyfin client for Android TV, Nvidia Shield, and Amazon Fire TV devices. We welcome all contributions and pull
-requests! If you have a larger feature in mind please open an issue so we can discuss the implementation before you start. 
+1. **Налаштування:** адреса сервера Jellyfin (перевіряється запитом `GET /System/Info/Public`) і назва пристрою.
+2. **Прив'язка через Quick Connect:** код великим шрифтом. Його треба ввести в порталі: Налаштування → Телевізори →
+   Прив'язати.
+3. **Екран очікування:** назва пристрою, сервер, акаунт, стан з'єднання й кнопка «Відключити» (також клавіша Menu).
+4. **Фонова служба:** Foreground Service. Тримає WebSocket `/socket` з перепідключенням (backoff 1 → 60 с),
+   KeepAlive і реакцією на зміну мережі. Реєструє можливості сесії і стартує після ввімкнення ТВ.
+5. **Команди сервера:** `Play` (PlayNow; PlayNext/PlayLast трактуються як PlayNow), `Playstate`
+   (Stop/Pause/Unpause/PlayPause/Seek), `GeneralCommand` (аудіо/субтитри, гучність, mute, повідомлення).
+6. **Плеєр Media3/ExoPlayer:**
+   - пряме відтворення або HLS-транскодування за профілем реальних декодерів пристрою;
+   - вбудовані й зовнішні субтитри;
+   - звіти `Playing` / `Progress` (кожні 10 с і після подій) / `Stopped`.
 
-## Building
+Керування з пульта в плеєрі:
 
-The app uses Gradle and requires the Android SDK. We recommend using Android Studio, which includes all required dependencies, for
-development and building. For manual building without Android Studio make sure a compatible JDK and Android SDK are installed and in your
-PATH, then use the Gradle wrapper (`./gradlew`) to build the project with the `assembleDebug` Gradle task to generate an apk file:
+| Клавіша | Дія |
+|---|---|
+| OK, Play/Pause | пауза / відтворення |
+| ← / → | −10 / +10 с; утримання прискорює крок до 30 і 60 с |
+| ↑ (або Menu) | панель: таймлайн, вибір аудіо й субтитрів |
+| ↓ / Info | показати таймлайн |
+| Rewind / Fast forward | −30 / +30 с |
+| Back, Stop | зупинити й повернутися на екран очікування |
+
+## Збірка
+
+Потрібні JDK 21 і Android SDK (compileSdk 37, build-tools 37).
 
 ```shell
 ./gradlew assembleDebug
+adb install -r app/build/outputs/apk/debug/movieportal-tv-v1.0.0-debug.apk
 ```
 
-The task will create an APK file in the `/app/build/outputs/apk/debug` directory. This APK file uses a different app-id from our stable
-builds and can be manually installed to your device.
+Release для Google Play:
 
-## Branching
+```shell
+./gradlew bundleRelease     # app/build/outputs/bundle/release/movieportal-tv-v1.0.0-release.aab
+./gradlew assembleRelease   # app/build/outputs/apk/release/movieportal-tv-v1.0.0-release.apk
+```
 
-The `master` branch is the primary development branch and the target for all pull requests. It is **unstable** and may contain breaking
-changes or unresolved bugs. For production deployments and forks, always use the latest `release-x.y.z` branch. Do not base production work
-or long-lived forks on `master`.
+- **Версія:** `app.versionName` і `app.versionCode` у `gradle.properties`, або перевизначення
+  `-Papp.versionName=1.0.1 -Papp.versionCode=2`. Для кожного завантаження в Play `versionCode` треба збільшувати.
+  Debug-збірка отримує суфікс `-debug`.
+- **Підпис release:** ключ завантаження (upload key) читається з файлу властивостей поза репозиторієм. Шлях задає
+  змінна `MOVIEPORTAL_KEYSTORE_PROPERTIES`, за замовчуванням `~/.movieportal-tv/keystore.properties`. Формат файлу:
+  `storeFile`, `storePassword`, `keyAlias`, `keyPassword`. Якщо файлу немає, release збирається непідписаним.
+  Ключі й паролі в репозиторій не потрапляють (`.gitignore`).
 
-Release branches are created at the start of a beta cycle and are kept up to date with each published release. Maintainers will cherry-pick
-selected changes into release branches as needed for backports. These branches are reused for subsequent patch releases.
+Ідентифікатори застосунку: `ua.movieportal.tv` (release) і `ua.movieportal.tv.debug` (debug). Обидва
+встановлюються поряд з офіційним Jellyfin і не конфліктують з ним.
 
-## Translating
+Публікація в Google Play описана в [`PLAY_PUBLISHING.md`](PLAY_PUBLISHING.md). Заготовки графіки для магазину лежать у
+`store/`.
 
-Translations can be improved very easily from our [Weblate](https://translate.jellyfin.org/projects/jellyfin-android/jellyfin-androidtv)
-instance. Look through the following graphic to see if your native language could use some work! We cannot accept changes to translation
-files via pull requests.
+## Дозвіл «Поверх інших застосунків»
 
-<p align="center">
-<a href="https://translate.jellyfin.org/engage/jellyfin-android/">
-<img alt="Detailed Translation Status" src="https://translate.jellyfin.org/widgets/jellyfin-android/-/jellyfin-androidtv/multi-auto.svg"/>
-</a>
-</p>
+Android 10+ забороняє застосункам відкривати екрани з фону. Щоб плеєр відкривався сам, коли на ТВ відкрито інший
+застосунок, потрібен дозвіл `SYSTEM_ALERT_WINDOW`. Кнопка на екрані налаштувань відкриває відповідний системний екран.
+На багатьох Android TV цього екрана немає; тоді дозвіл можна надати з комп'ютера:
+
+```shell
+adb shell appops set ua.movieportal.tv SYSTEM_ALERT_WINDOW allow
+```
+
+Без дозволу плеєр відкривається сам лише тоді, коли на екрані відкритий цей застосунок. В інших випадках з'являється
+сповіщення «Відтворення з порталу» (на більшості ТВ його видно лише в панелі сповіщень).
+
+## Похідна робота від jellyfin-androidtv
+
+Цей проєкт є похідною роботою від [Jellyfin for Android TV](https://github.com/jellyfin/jellyfin-androidtv)
+(форк від коміту `09c912d39226d881d657400432af6e9c26377df3`). Оригінальний код належить учасникам проєкту Jellyfin і
+поширюється за ліцензією GNU GPL версії 2. Ця похідна робота поширюється на тих самих умовах (файл [`LICENSE`](LICENSE)).
+
+«Jellyfin» і логотип Jellyfin є торговими марками проєкту Jellyfin. Цей застосунок не є офіційним клієнтом Jellyfin,
+має власну назву та іконку і не пов'язаний з проєктом Jellyfin.
+
+### Перелік змін відносно оригіналу
+
+- Новий ідентифікатор `ua.movieportal.tv`, назва «Movie Portal TV», власна іконка й банер-заглушки, пакет коду
+  `ua.movieportal.tv`.
+- Видалено модулі `:design`, `:preference`, `:playback:core`, `:playback:jellyfin`, `:playback:media3:exoplayer`,
+  `:playback:media3:session`.
+- Видалено весь інтерфейс оригіналу: бібліотеки, головну, деталі, пошук, обране, Live TV, музику, фото, заставку,
+  трейлери, теми, «Наступну серію», канали Leanback/Watch Next, голосовий пошук, вхід паролем, вибір
+  сервера/користувача, налаштування, ACRA і екран ліцензій.
+- Видалено залежності Koin, Compose, Leanback, Navigation3, AppCompat, WorkManager, Coil, Markwon, ACRA, AboutLibraries,
+  tvprovider, libass, а також 70+ локалізацій. Інтерфейс лише українською.
+- Написано заново:
+  - екрани налаштування, Quick Connect і очікування;
+  - Foreground Service з власним WebSocket-клієнтом;
+  - автозапуск після ввімкнення ТВ;
+  - запуск плеєра з фону;
+  - плеєр на Media3 з мінімальною панеллю;
+  - звіти про відтворення.
+- З оригіналу перенесено (з адаптацією):
+  - визначення можливостей декодерів (`profile/codec/*`, `KnownDefects`, `MediaCodecCapabilitiesTest`);
+  - профіль пристрою (`profile/deviceProfile.kt`): налаштування користувача замінено значеннями за замовчуванням,
+    ASS/SSA рендерить вбудований парсер Media3;
+  - логіку вибору DirectPlay / DirectStream / Transcode.
+- Прибрано `.github/` (CI Jellyfin), `fastlane/` (опис магазину Jellyfin), `CODEOWNERS`, `renovate.json`.
+
+Детальний план і технічні рішення: [`RECEIVER_PLAN.md`](RECEIVER_PLAN.md).
