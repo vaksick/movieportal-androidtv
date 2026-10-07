@@ -16,6 +16,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -49,6 +50,7 @@ class ReceiverService : Service() {
 	private lateinit var volume: VolumeController
 
 	private var credentials: Credentials? = null
+	private var connectedName: String? = null
 	private var api: ApiClient? = null
 	private var socket: SessionSocket? = null
 	private var heartbeatJob: Job? = null
@@ -64,15 +66,16 @@ class ReceiverService : Service() {
 		networkMonitor = NetworkMonitor(this) { socket?.reconnectNow() }
 		networkMonitor.start()
 
+		// One connection per (credentials, device name): a rename re-registers the session exactly once
 		scope.launch {
-			app.settings.credentials.collect { current ->
+			combine(app.settings.credentials, app.settings.deviceNameFlow, ::Pair).collect { (current, name) ->
 				when {
 					current == null -> {
 						Timber.i("No credentials, stopping service")
 						stopSelf()
 					}
 
-					current != credentials -> connect(current)
+					current != credentials || name != connectedName -> connect(current, name)
 				}
 			}
 		}
@@ -97,11 +100,12 @@ class ReceiverService : Service() {
 		super.onDestroy()
 	}
 
-	private fun connect(credentials: Credentials) {
+	private fun connect(credentials: Credentials, deviceName: String) {
 		socket?.stop()
 		heartbeatJob?.cancel()
 
 		this.credentials = credentials
+		connectedName = deviceName
 		val api = app.jellyfin.createApi(credentials)
 		this.api = api
 

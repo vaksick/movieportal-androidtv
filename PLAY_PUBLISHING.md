@@ -9,9 +9,9 @@
 
 | Що | Де |
 |---|---|
-| Пакет для Play (AAB), підписаний ключем завантаження | `app/build/outputs/bundle/release/movieportal-tv-v1.0.0-release.aab` |
-| APK для ручного встановлення / перевірки | `app/build/outputs/apk/release/movieportal-tv-v1.0.0-release.apk` |
-| Версія | `versionName 1.0.0`, `versionCode 1` (`gradle.properties`) |
+| Пакет для Play (AAB), підписаний ключем завантаження | `app/build/outputs/bundle/release/movieportal-tv-v1.1.1-release.aab` |
+| APK для ручного встановлення / перевірки | `app/build/outputs/apk/release/movieportal-tv-v1.1.1-release.apk` |
+| Версія | `versionName 1.1.1`, `versionCode 3` (`gradle.properties`) |
 | Ідентифікатор | `ua.movieportal.tv` (змінити його після першої публікації вже не можна) |
 | Ключ завантаження (upload key) | `~/.movieportal-tv/upload-keystore.jks`, паролі в `~/.movieportal-tv/keystore.properties` (поза репозиторієм) |
 | Графіка-заготовки для сторінки | `store/icon-512.png`, `store/feature-graphic-1024x500.png`, `store/tv-banner-1280x720.png` |
@@ -97,7 +97,7 @@ Google Play використовує **Play App Signing**: застосунок 
 1. **Тестування та випуск → Тестування → Внутрішнє тестування (Internal testing) → Створити випуск.**
 2. Play Console запропонує **Play App Signing**. Залиште варіант «Google генерує та зберігає ключ підпису»
    (рекомендовано).
-3. Завантажте файл `movieportal-tv-v1.0.0-release.aab`. Play Console сам запам'ятає сертифікат вашого ключа
+3. Завантажте файл `movieportal-tv-v1.1.1-release.aab`. Play Console сам запам'ятає сертифікат вашого ключа
    завантаження з першого пакета.
 4. Примітки до випуску, наприклад: «Перша версія: приймач для порталу movie-portal».
 5. Додайте тестувальників (список email) і збережіть. Розішліть посилання на участь.
@@ -148,7 +148,10 @@ Google Play використовує **Play App Signing**: застосунок 
 Потрібне посилання на публічну сторінку з політикою конфіденційності **(перевірте актуальність: Play вимагає її
 для всіх застосунків)**. Достатньо простої сторінки (наприклад, у README публічного репозиторію або GitHub Pages),
 яка пояснює:
-- застосунок підключається лише до сервера, адресу якого вводить користувач;
+- застосунок шукає сервер Jellyfin у локальній мережі (UDP broadcast на порт 7359) і підключається лише до сервера,
+  який вибрав або ввів користувач;
+- QR-код на екрані містить одноразовий код прив'язки, ідентифікатор пристрою та ідентифікатор сервера; його
+  сканує лише портал користувача;
 - на пристрої зберігаються адреса сервера, назва пристрою, ідентифікатор пристрою і ключ доступу (зашифрований);
 - на сервер користувача надсилаються дані про відтворення (що грає, позиція, пауза, вибрані доріжки);
 - розробник не отримує жодних даних, сторонніх SDK, аналітики й реклами немає.
@@ -159,6 +162,7 @@ Google Play використовує **Play App Signing**: застосунок 
 
 | Питання | Відповідь |
 |---|---|
+| Пошук сервера в локальній мережі | Застосунок надсилає в локальну мережу UDP-запит «who is JellyfinServer?» (порт 7359) і читає відповіді серверів. Дані за межі локальної мережі не йдуть, третім особам нічого не передається. Дозвіл `CHANGE_WIFI_MULTICAST_STATE` потрібен лише для прийому цих відповідей. Окремого пункту в Data safety це не потребує, але згадайте в політиці конфіденційності. |
 | Чи збирає або передає застосунок дані користувачів? | Рекомендована відповідь: **«Ні»**. Дані передаються лише на сервер, який обрав і контролює сам користувач; розробник їх не отримує. Так відповідають інші клієнти для власних серверів **(перевірте актуальність тлумачення «збору» у довідці Play)**. |
 | Якщо вирішите відповісти консервативно «Так» | Тип: «Ідентифікатори пристрою або інші ID» (ідентифікатор пристрою для сесії), «Активність у застосунку» (дані про відтворення). Мета: «Функціональність застосунку». Не передається третім особам. Збір обов'язковий для роботи. На питання «Чи шифруються дані під час передавання?» відповідь **«Ні»**, бо користувач може вибрати сервер з `http://`. |
 | Чи можна видалити дані? | Кнопка «Відключити» стирає ключ доступу на пристрої. Дані на сервері користувач видаляє у своєму Jellyfin. |
@@ -212,9 +216,10 @@ Google може попросити коротке відео (посилання
 1. Тестовий (демо) сервер Jellyfin і демо-доступ до порталу, доступні з інтернету через **https**. Окремий
    демо-акаунт, без ваших реальних даних, з одним-двома вільними (public domain) фільмами.
 2. Інструкція англійською, наприклад:
-   > 1. Open the app, enter server address `https://<demo-server>` and press Connect.
-   > 2. A 6-digit code appears. Log in to the portal at `https://<demo-portal>` with user `<demo>` / password `<…>`,
-   >    open Settings → TVs → Link and enter the code.
+   > 1. Open the app. It searches the local network; reviewers are not on our LAN, so press
+   >    "Ввести адресу вручну" (Enter address manually), enter `https://<demo-server>` and press Connect.
+   > 2. A QR code and a 6-digit code appear. Log in to the portal at `https://<demo-portal>` with user `<demo>` /
+   >    password `<…>`, open Settings → TVs → Link and enter the 6-digit code (or scan the QR code with a phone).
    > 3. In the portal open any movie and press "Play on…" → select this TV. Playback starts on the TV.
 3. Демо-сервер має працювати весь час перевірки (кілька днів) і після неї: Google може перевіряти повторно.
 
@@ -256,10 +261,10 @@ Google може попросити коротке відео (посилання
 
 ```shell
 # Підпис пакета (має бути "jar verified" і CN=Movie Portal TV)
-$JAVA_HOME/bin/jarsigner -verify -verbose -certs app/build/outputs/bundle/release/movieportal-tv-v1.0.0-release.aab | tail -5
+$JAVA_HOME/bin/jarsigner -verify -verbose -certs app/build/outputs/bundle/release/movieportal-tv-v1.1.1-release.aab | tail -5
 
 # Ручне встановлення APK на ТВ або емулятор
-adb install -r app/build/outputs/apk/release/movieportal-tv-v1.0.0-release.apk
+adb install -r app/build/outputs/apk/release/movieportal-tv-v1.1.1-release.apk
 ```
 
 Після публікації через Play версія, встановлена вручну (підписана ключем завантаження), конфліктуватиме з версією з

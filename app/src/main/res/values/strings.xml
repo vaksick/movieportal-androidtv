@@ -1,19 +1,39 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Discovery -->
+    <string name="discovery_title">Пошук сервера Jellyfin</string>
+    <string name="discovery_searching">Шукаємо сервер у домашній мережі…</string>
+    <string name="discovery_none">Сервер не знайдено. Пошук триває…</string>
+    <string name="discovery_choose">Знайдено кілька серверів. Виберіть потрібний:</string>
+    <string name="discovery_one">Знайдено сервер. Виберіть його, щоб продовжити:</string>
+    <string name="discovery_all_unreachable">Сервер знайдено, але він недоступний з цього пристрою.</string>
+    <string name="discovery_insecure_title">Знайдено сервер «%1$s» (%2$s)</string>
+    <string name="discovery_server_item_insecure">%1$s — незахищений (http)\n%2$s</string>
+    <string name="discovery_server_item">%1$s\n%2$s</string>
+    <string name="discovery_unreachable">%1$s — недоступний (%2$s)</string>
+    <string name="discovery_unreachable_hint">Сервер відповів, але адреса, яку він повідомляє, недоступна з цього пристрою (наприклад, внутрішня адреса Docker). Вкажіть у Jellyfin адресу в локальній мережі: Панель керування → Мережа → «Опубліковані URI сервера» (Published server URIs). Або введіть адресу вручну.</string>
+    <string name="discovery_none_hint">Перевірте, що пристрій і сервер в одній мережі, а в Jellyfin увімкнено автоматичне виявлення (Панель керування → Мережа). Якщо Jellyfin працює в Docker без network_mode: host, автоматичний пошук не працює — введіть адресу вручну.</string>
+    <string name="discovery_manual">Ввести адресу вручну</string>
+    <string name="discovery_address_unknown">адреса невідома</string>
+
+    <!-- Plain http warning (discovery and manual setup) -->
+    <string name="insecure_warning">Знайдено лише незахищене з\'єднання (http). Код прив\'язки і токен доступу передаватимуться без шифрування — будь-хто в мережі може їх перехопити. Рекомендуємо налаштувати HTTPS у Jellyfin.</string>
+    <string name="insecure_connect_anyway">Все одно підключитися</string>
+    <string name="insecure_press_again">%1$s\nНатисніть «Підключитися» ще раз, щоб усе одно підключитися.</string>
+
     <!-- Setup -->
     <string name="setup_title">Підключення до сервера</string>
-    <string name="setup_description">Цей телевізор стане приймачем порталу: фільми запускаються з порталу кнопкою «Відтворити на…».</string>
+    <string name="setup_description">Цей пристрій стане приймачем порталу: фільми запускаються з порталу кнопкою «Відтворити на…».</string>
     <string name="setup_server_label">Адреса сервера Jellyfin</string>
     <string name="setup_server_hint">http://192.168.1.10:8096</string>
-    <string name="setup_device_name_label">Назва пристрою</string>
     <string name="setup_connect">Підключитися</string>
     <string name="setup_checking">Перевірка сервера…</string>
     <string name="setup_permissions_title">Дозволи</string>
-    <string name="setup_overlay_description">«Поверх інших застосунків» потрібен, щоб плеєр відкривався сам, коли телевізор показує інший застосунок.</string>
+    <string name="setup_overlay_description">«Поверх інших застосунків» потрібен, щоб плеєр відкривався сам, коли на пристрої відкрито інший застосунок.</string>
     <string name="setup_overlay_granted">Показ поверх інших застосунків: дозволено</string>
     <string name="setup_overlay_missing">Показ поверх інших застосунків: не дозволено</string>
     <string name="setup_overlay_button">Дозволити показ поверх застосунків</string>
-    <string name="setup_overlay_unavailable">На цьому ТВ немає системного екрана для цього дозволу. Надайте його з комп\'ютера:\nadb shell appops set %1$s SYSTEM_ALERT_WINDOW allow</string>
+    <string name="setup_overlay_unavailable">На цьому пристрої немає системного екрана для цього дозволу. Надайте його з комп\'ютера:\nadb shell appops set %1$s SYSTEM_ALERT_WINDOW allow</string>
     <string name="setup_notifications_granted">Сповіщення: дозволено</string>
     <string name="setup_notifications_missing">Сповіщення: не дозволено (потрібні для запасного способу запуску плеєра)</string>
     <string name="setup_notifications_button">Дозволити сповіщення</string>
@@ -25,22 +45,24 @@
     <string name="error_refused">Сервер не відповідає за цією адресою. Перевірте IP і порт (зазвичай 8096).</string>
     <string name="error_timeout">Сервер не відповів вчасно. Перевірте мережу.</string>
     <string name="error_tls">Помилка захищеного з\'єднання (HTTPS). Спробуйте http:// або перевірте сертифікат.</string>
-    <string name="error_network">Помилка мережі. Перевірте підключення телевізора.</string>
+    <string name="error_network">Помилка мережі. Перевірте підключення пристрою.</string>
     <string name="error_not_jellyfin">За цією адресою відповідає не сервер Jellyfin.</string>
     <string name="error_http_status">Сервер відповів помилкою %1$d.</string>
     <string name="error_other">Помилка: %1$s</string>
-    <string name="setup_insecure_warning">Увага: адреса http:// поза домашньою мережею. Ключ доступу передаватиметься інтернетом без шифрування. Краще використати https://. Натисніть «Підключитися» ще раз, щоб продовжити.</string>
     <string name="setup_server_ok">Знайдено сервер «%1$s», версія %2$s</string>
 
     <!-- Quick Connect -->
-    <string name="qc_title">Прив\'язка телевізора</string>
-    <string name="qc_hint">Введіть цей код у порталі:\nНалаштування → Телевізори → Прив\'язати</string>
+    <string name="qc_title">Прив\'язка пристрою</string>
+    <!-- "📷" is replaced with a vector camera icon at runtime (emoji may not render on TVs) -->
+    <string name="qc_hint">Відкрийте портал на телефоні → Налаштування → Пристрої → «+» → натисніть 📷 і наведіть камеру на код</string>
+    <string name="qc_code_label">Або введіть цей код у поле (Налаштування → Пристрої → «+») і натисніть «Додати»:</string>
+    <string name="qc_qr_description">QR-код для прив\'язки пристрою в порталі</string>
     <string name="qc_requesting">Отримання коду…</string>
     <string name="qc_waiting">Очікування підтвердження…</string>
     <string name="qc_authenticating">Код підтверджено, вхід…</string>
     <string name="qc_disabled">Quick Connect вимкнено. Увімкніть Quick Connect у Jellyfin (Панель керування → Загальні).</string>
     <string name="qc_connection_problem">Немає зв\'язку з сервером, повторюємо…</string>
-    <string name="qc_revoked">Доступ цього телевізора відкликано. Прив\'яжіть його знову.</string>
+    <string name="qc_revoked">Доступ цього пристрою відкликано. Прив\'яжіть його знову.</string>
     <string name="qc_change_server">Змінити сервер</string>
     <string name="qc_server">Сервер: %1$s</string>
 
@@ -54,9 +76,12 @@
     <string name="status_reconnecting">Перепідключення через %1$d с…</string>
     <string name="status_offline">Немає мережі</string>
     <string name="status_stopped">Служба зупинена</string>
-    <string name="status_hint">Запустіть фільм у порталі кнопкою «Відтворити на…» і виберіть цей телевізор.</string>
+    <string name="status_hint">Запустіть фільм у порталі кнопкою «Відтворити на…» і виберіть цей пристрій.</string>
     <string name="status_disconnect">Відключити</string>
-    <string name="status_disconnect_confirm">Відключити телевізор від порталу? Потрібно буде знову ввести адресу сервера і прив\'язати ТВ кодом.</string>
+    <string name="status_rename">Перейменувати</string>
+    <string name="status_rename_title">Назва пристрою</string>
+    <string name="status_rename_save">Зберегти</string>
+    <string name="status_disconnect_confirm">Відключити пристрій від порталу? Потрібно буде знову прив\'язати його кодом.</string>
     <string name="cancel">Скасувати</string>
 
     <!-- Service and notifications -->

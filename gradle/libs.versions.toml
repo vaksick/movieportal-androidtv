@@ -19,6 +19,7 @@ kotlinx-serialization = "1.11.0"
 okhttp = "5.3.2"
 slf4j-timber = "0.0.4"
 timber = "5.0.1"
+zxing = "3.5.3"
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "android-gradle" }
@@ -47,6 +48,9 @@ androidx-media3-exoplayer = { module = "androidx.media3:media3-exoplayer", versi
 androidx-media3-exoplayer-hls = { module = "androidx.media3:media3-exoplayer-hls", version.ref = "androidx-media3" }
 androidx-media3-ui = { module = "androidx.media3:media3-ui", version.ref = "androidx-media3" }
 jellyfin-androidx-media3-ffmpeg-decoder = { module = "org.jellyfin.media3:media3-ffmpeg-decoder", version.ref = "jellyfin-androidx-media" }
+
+# QR code (pairing)
+zxing-core = { module = "com.google.zxing:core", version.ref = "zxing" }
 
 # Logging
 slf4j-timber = { module = "io.github.unveloper:slf4j-timber", version.ref = "slf4j-timber" }

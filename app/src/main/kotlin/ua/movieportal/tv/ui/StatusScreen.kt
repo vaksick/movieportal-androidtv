@@ -2,7 +2,10 @@ package ua.movieportal.tv.ui
 
 import android.app.AlertDialog
 import android.view.View
+import android.view.inputmethod.EditorInfo
 import android.widget.Button
+import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.CoroutineScope
@@ -21,6 +24,7 @@ class StatusScreen(
 	private val scope: CoroutineScope,
 	private val settings: AppSettings,
 	private val onDisconnect: () -> Unit,
+	private val onRename: (String) -> Unit,
 ) {
 	private val context = root.context
 	private val connection = root.findViewById<TextView>(R.id.status_connection)
@@ -28,11 +32,13 @@ class StatusScreen(
 	private val server = root.findViewById<TextView>(R.id.status_server)
 	private val account = root.findViewById<TextView>(R.id.status_account)
 	private val disconnect = root.findViewById<Button>(R.id.status_disconnect)
+	private val renameButton = root.findViewById<Button>(R.id.status_rename)
 
 	private var job: Job? = null
 
 	init {
 		disconnect.setOnClickListener { confirmDisconnect() }
+		renameButton.setOnClickListener { showRenameDialog() }
 	}
 
 	fun start() {
@@ -58,6 +64,29 @@ class StatusScreen(
 		AlertDialog.Builder(context, android.R.style.Theme_DeviceDefault_Dialog_Alert)
 			.setMessage(R.string.status_disconnect_confirm)
 			.setPositiveButton(R.string.status_disconnect) { _, _ -> onDisconnect() }
+			.setNegativeButton(R.string.cancel, null)
+			.show()
+	}
+
+	/** The device name defaults to the TV's system name; it can be changed here without the setup flow. */
+	private fun showRenameDialog() {
+		val input = EditText(context).apply {
+			setText(settings.deviceName)
+			setSelection(text.length)
+			isSingleLine = true
+			imeOptions = EditorInfo.IME_ACTION_DONE or EditorInfo.IME_FLAG_NO_EXTRACT_UI
+		}
+		val padding = context.resources.getDimensionPixelSize(R.dimen.dialog_padding)
+		val container = FrameLayout(context).apply {
+			setPadding(padding, 0, padding, 0)
+			addView(input)
+		}
+		AlertDialog.Builder(context, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+			.setTitle(R.string.status_rename_title)
+			.setView(container)
+			.setPositiveButton(R.string.status_rename_save) { _, _ ->
+				input.text.toString().trim().takeIf { it.isNotEmpty() }?.let(onRename)
+			}
 			.setNegativeButton(R.string.cancel, null)
 			.show()
 	}

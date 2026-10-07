@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Pairing QR code: ~42% of a 1080p TV screen height, scannable with a phone from about 3 m -->
+    <dimen name="qr_size">420dp</dimen>
+    <dimen name="dialog_padding">24dp</dimen>
+</resources>

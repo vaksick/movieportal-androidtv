@@ -94,37 +94,8 @@ class JellyfinClient(context: Context, private val settings: AppSettings) {
 			return url
 		}
 
-		/**
-		 * True for `http://` addresses that do not look like a home network (private IPv4/IPv6 ranges, CGNAT/VPN range,
-		 * `localhost`, single-label names, `.local`/`.lan`/`.home.arpa`/`.internal`). The access token would travel
-		 * unencrypted over the internet, so the setup screen asks for confirmation.
-		 */
-		fun isInsecurePublicUrl(url: String): Boolean {
-			val uri = runCatching { java.net.URI(url) }.getOrNull() ?: return false
-			if (uri.scheme?.lowercase() != "http") return false
-			val host = uri.host?.lowercase()?.removePrefix("[")?.removeSuffix("]") ?: return false
-			return !isPrivateHost(host)
-		}
-
-		private fun isPrivateHost(host: String): Boolean {
-			if (host == "localhost" || !host.contains('.') && !host.contains(':')) return true
-			if (privateSuffixes.any { host.endsWith(it) }) return true
-
-			val octets = host.split('.').mapNotNull { it.toIntOrNull() }
-			if (octets.size == 4 && host.count { it == '.' } == 3) {
-				val (a, b) = octets
-				return a == 10 || a == 127 || (a == 172 && b in 16..31) || (a == 192 && b == 168) ||
-					(a == 169 && b == 254) || (a == 100 && b in 64..127)
-			}
-
-			// IPv6: loopback, unique local (fc00::/7), link local (fe80::/10)
-			if (host.contains(':')) return host == "::1" || host.startsWith("fc") || host.startsWith("fd") || host.startsWith("fe8") ||
-				host.startsWith("fe9") || host.startsWith("fea") || host.startsWith("feb")
-
-			return false
-		}
-
-		private val privateSuffixes = listOf(".local", ".lan", ".home.arpa", ".internal")
+		/** Plain http: the pairing code and the access token travel unencrypted (warned in discovery and setup). */
+		fun isInsecureUrl(url: String): Boolean = url.startsWith("http://", ignoreCase = true)
 
 		/** HTTP status of an SDK error, if the server answered at all. */
 		fun Throwable.httpStatus(): Int? = causeChain().filterIsInstance<InvalidStatusException>().firstOrNull()?.status

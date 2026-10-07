@@ -5,6 +5,9 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
+    <!-- Jellyfin LAN discovery (UDP broadcast): many TVs drop broadcast replies without a multicast lock -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+
     <!-- Background receiver service -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
@@ -19,6 +22,10 @@
         android:required="false" />
     <uses-feature
         android:name="android.hardware.touchscreen"
+        android:required="false" />
+    <!-- The multicast permission implies Wi-Fi; Ethernet-only TVs must stay compatible -->
+    <uses-feature
+        android:name="android.hardware.wifi"
         android:required="false" />
 
     <application
