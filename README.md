@@ -1,3 +1,5 @@
+Fork of jellyfin-androidtv (commit 09c912d39226d881d657400432af6e9c26377df3), heavily modified
+
 <h1 align="center">Jellyfin for Android TV</h1>
 <h3 align="center">Part of the <a href="https://jellyfin.org">Jellyfin Project</a></h3>
 
