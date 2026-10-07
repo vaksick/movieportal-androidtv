@@ -1,17 +1,9 @@
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
-rootProject.name = "jellyfin-androidtv"
+rootProject.name = "movieportal-tv"
 
 // Application
 include(":app")
-
-// Modules
-include(":design")
-include(":playback:core")
-include(":playback:jellyfin")
-include(":playback:media3:exoplayer")
-include(":playback:media3:session")
-include(":preference")
 
 pluginManagement {
 	repositories {

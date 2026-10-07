@@ -1,9 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
-<network-security-config xmlns:tools="http://schemas.android.com/tools" >
-    <base-config cleartextTrafficPermitted="true" tools:ignore="InsecureBaseConfiguration" >
+<!--
+    Home Jellyfin servers are often plain HTTP on the LAN, so cleartext stays allowed (the setup screen warns about
+    http:// on public addresses). Release builds trust only system CAs (Let's Encrypt etc.); user-installed CAs are
+    trusted in debug builds only. Hostname verification is never disabled.
+-->
+<network-security-config xmlns:tools="http://schemas.android.com/tools">
+    <base-config cleartextTrafficPermitted="true" tools:ignore="InsecureBaseConfiguration">
         <trust-anchors>
             <certificates src="system" />
-            <certificates src="user" tools:ignore="AcceptsUserCertificates" />
         </trust-anchors>
     </base-config>
+
+    <debug-overrides>
+        <trust-anchors>
+            <certificates src="user" tools:ignore="AcceptsUserCertificates" />
+        </trust-anchors>
+    </debug-overrides>
 </network-security-config>

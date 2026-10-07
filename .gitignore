@@ -7,3 +7,8 @@ local.properties
 .kotlin/
 build/
 captures/
+
+# Signing material must never be committed
+keystore.properties
+*.jks
+*.keystore
