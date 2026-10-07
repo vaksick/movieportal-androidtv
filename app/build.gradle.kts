@@ -105,6 +105,9 @@ dependencies {
 	implementation(libs.androidx.media3.ui)
 	implementation(libs.jellyfin.androidx.media3.ffmpeg.decoder)
 
+	// QR code for pairing (encoder only, rendered to a Bitmap by the app)
+	implementation(libs.zxing.core)
+
 	// Logging
 	implementation(libs.timber)
 	implementation(libs.slf4j.timber)

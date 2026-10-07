@@ -35,19 +35,18 @@ class SetupScreen(
 ) {
 	private val context: Context = root.context
 	private val serverInput = root.findViewById<EditText>(R.id.setup_server)
-	private val deviceNameInput = root.findViewById<EditText>(R.id.setup_device_name)
 	private val message = root.findViewById<TextView>(R.id.setup_message)
 	private val connectButton = root.findViewById<Button>(R.id.setup_connect)
 
 	private var checkJob: Job? = null
 
-	// Plain http to a public address is allowed only after a second press of "Connect"
+	// Plain http is allowed only after a second press of "Connect"
 	private var confirmedInsecureUrl: String? = null
 
 	init {
 		connectButton.setOnClickListener { connect() }
-		deviceNameInput.setOnEditorActionListener { _, actionId, event ->
-			val done = actionId == EditorInfo.IME_ACTION_DONE ||
+		serverInput.setOnEditorActionListener { _, actionId, event ->
+			val done = actionId == EditorInfo.IME_ACTION_DONE || actionId == EditorInfo.IME_ACTION_GO ||
 				(event?.keyCode == KeyEvent.KEYCODE_ENTER && event.action == KeyEvent.ACTION_UP)
 			if (done) {
 				hideKeyboard()
@@ -59,7 +58,6 @@ class SetupScreen(
 
 	fun show() {
 		serverInput.setText(settings.serverUrl.orEmpty())
-		deviceNameInput.setText(settings.deviceName)
 		message.text = ""
 		connectButton.isEnabled = true
 		// Start on the first empty field
@@ -81,17 +79,16 @@ class SetupScreen(
 		val serverUrl = JellyfinClient.normalizeServerUrl(rawAddress)
 			?: return showError(context.getString(R.string.error_invalid_address))
 
-		if (JellyfinClient.isInsecurePublicUrl(serverUrl) && confirmedInsecureUrl != serverUrl) {
+		// Same rule and text as discovery: any plain http address needs an explicit second press
+		if (JellyfinClient.isInsecureUrl(serverUrl) && confirmedInsecureUrl != serverUrl) {
 			confirmedInsecureUrl = serverUrl
 			serverInput.setText(serverUrl)
 			message.setTextColor(ContextCompat.getColor(context, R.color.accent))
-			message.setText(R.string.setup_insecure_warning)
+			message.text = context.getString(R.string.insecure_press_again, context.getString(R.string.insecure_warning))
 			connectButton.requestFocus()
 			return
 		}
 
-		settings.deviceName = deviceNameInput.text.toString().ifBlank { AppSettings.DEFAULT_DEVICE_NAME }
-		deviceNameInput.setText(settings.deviceName)
 		serverInput.setText(serverUrl)
 
 		checkJob?.cancel()
@@ -112,6 +109,8 @@ class SetupScreen(
 				message.setTextColor(ContextCompat.getColor(context, R.color.ok))
 				message.text = context.getString(R.string.setup_server_ok, info.serverName.orEmpty(), info.version.orEmpty())
 				settings.serverUrl = serverUrl
+				settings.serverId = info.id
+				if (JellyfinClient.isInsecureUrl(serverUrl)) info.id?.let(settings::confirmInsecureServer)
 				onConfigured()
 			} catch (_: TimeoutCancellationException) {
 				showError(context.getString(R.string.error_timeout))

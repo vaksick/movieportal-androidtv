@@ -2,6 +2,7 @@ package ua.movieportal.tv.data
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.os.Build
 import android.provider.Settings
 import androidx.core.content.edit
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -43,9 +44,74 @@ class AppSettings(context: Context) {
 		get() = prefs.getString(KEY_SERVER_URL, null)
 		set(value) = prefs.edit { putString(KEY_SERVER_URL, value) }
 
+	/** Jellyfin server id (from /System/Info/Public), put into the pairing QR code. */
+	var serverId: String?
+		get() = prefs.getString(KEY_SERVER_ID, null)
+		set(value) = prefs.edit { putString(KEY_SERVER_ID, value) }
+
+	private val _deviceName = MutableStateFlow(readOrInitDeviceName())
+
+	/** Name shown in Jellyfin sessions; observed by the service, which re-registers the session on change. */
+	val deviceNameFlow: StateFlow<String> = _deviceName.asStateFlow()
+
 	var deviceName: String
-		get() = prefs.getString(KEY_DEVICE_NAME, null)?.takeIf { it.isNotBlank() } ?: DEFAULT_DEVICE_NAME
-		set(value) = prefs.edit { putString(KEY_DEVICE_NAME, value.trim()) }
+		get() = _deviceName.value
+		set(value) {
+			val name = value.trim().take(MAX_DEVICE_NAME_LENGTH).ifEmpty { return }
+			prefs.edit { putString(KEY_DEVICE_NAME, name) }
+			_deviceName.value = name
+		}
+
+	/** Server ids for which the user accepted a plain http connection (cleared when changing the server). */
+	val confirmedInsecureServers: Set<String>
+		get() = prefs.getStringSet(KEY_INSECURE_CONFIRMED, null).orEmpty()
+
+	fun confirmInsecureServer(serverId: String) {
+		prefs.edit { putStringSet(KEY_INSECURE_CONFIRMED, confirmedInsecureServers + serverId) }
+	}
+
+	fun clearInsecureConfirmations() {
+		prefs.edit { remove(KEY_INSECURE_CONFIRMED) }
+	}
+
+	/**
+	 * The stored name, or on first run the TV's own name from the system settings (Settings → Device preferences →
+	 * About → Device name), stored once so no settings lookup happens per request.
+	 */
+	private fun readOrInitDeviceName(): String {
+		// Version 1.0 stored the app name as the default; replace it with the TV's own name
+		prefs.getString(KEY_DEVICE_NAME, null)?.takeIf { it.isNotBlank() && it != DEFAULT_DEVICE_NAME }?.let { return it }
+
+		val name = systemDeviceName()
+		prefs.edit { putString(KEY_DEVICE_NAME, name) }
+		return name
+	}
+
+	/** Forgets a name entered with "Перейменувати": the next pairing starts with the TV's own name again. */
+	private fun resetDeviceName() {
+		val name = systemDeviceName()
+		prefs.edit { putString(KEY_DEVICE_NAME, name) }
+		_deviceName.value = name
+	}
+
+	/** "Sony BRAVIA 4K VH2", without repeating the manufacturer when the model already starts with it. */
+	private fun modelName(): String {
+		val manufacturer = Build.MANUFACTURER.orEmpty().trim()
+		val model = Build.MODEL.orEmpty().trim()
+		return when {
+			manufacturer.isEmpty() || model.startsWith(manufacturer, ignoreCase = true) -> model
+			else -> "${manufacturer.replaceFirstChar { it.uppercase() }} $model"
+		}
+	}
+
+	private fun systemDeviceName(): String {
+		val resolver = appContext.contentResolver
+		return listOf(
+			runCatching { Settings.Global.getString(resolver, DEVICE_NAME) }.getOrNull(),
+			runCatching { Settings.Secure.getString(resolver, BLUETOOTH_NAME) }.getOrNull(),
+			modelName(),
+		).firstOrNull { !it.isNullOrBlank() }?.trim()?.take(MAX_DEVICE_NAME_LENGTH) ?: DEFAULT_DEVICE_NAME
+	}
 
 	/** Last reason the credentials were cleared, consumed by the UI. */
 	var lastLogoutReason: LogoutReason?
@@ -82,6 +148,7 @@ class AppSettings(context: Context) {
 			putString(KEY_LOGOUT_REASON, reason.name)
 		}
 		_credentials.value = null
+		if (reason == LogoutReason.USER) resetDeviceName()
 	}
 
 	private fun readCredentials(): Credentials? {
@@ -104,9 +171,17 @@ class AppSettings(context: Context) {
 
 	companion object {
 		const val DEFAULT_DEVICE_NAME = "Movie Portal TV"
+		private const val MAX_DEVICE_NAME_LENGTH = 40
+
+		// Settings.Global.DEVICE_NAME (API 25+, same key works as a lookup on older versions) and the Settings.Secure
+		// key Android uses for the Bluetooth device name (not exposed as a constant)
+		private const val DEVICE_NAME = "device_name"
+		private const val BLUETOOTH_NAME = "bluetooth_name"
 
 		private const val PREFS_NAME = "receiver"
 		private const val KEY_SERVER_URL = "server_url"
+		private const val KEY_SERVER_ID = "server_id"
+		private const val KEY_INSECURE_CONFIRMED = "insecure_confirmed"
 		private const val KEY_DEVICE_NAME = "device_name"
 		private const val KEY_DEVICE_ID = "device_id"
 		private const val KEY_ACCESS_TOKEN = "access_token"

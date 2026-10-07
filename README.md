@@ -9,10 +9,17 @@
 
 ## Можливості
 
-1. **Налаштування:** адреса сервера Jellyfin (перевіряється запитом `GET /System/Info/Public`) і назва пристрою.
-2. **Прив'язка через Quick Connect:** код великим шрифтом. Його треба ввести в порталі: Налаштування → Телевізори →
-   Прив'язати.
-3. **Екран очікування:** назва пристрою, сервер, акаунт, стан з'єднання й кнопка «Відключити» (також клавіша Menu).
+1. **Пошук сервера без введення тексту:** застосунок сам шукає Jellyfin у локальній мережі (UDP 7359) і
+   використовує лише адресу, яку повідомляє сервер («Опубліковані URI сервера» в Jellyfin). Для `http://` адреси
+   автоматично пробує `https://` того самого хоста й віддає перевагу HTTPS. Один доступний сервер з HTTPS вибирається
+   автоматично. Якщо працює лише http, спершу показується попередження про незахищене з'єднання. Кілька серверів —
+   список (http-сервери позначено «незахищений»); жодного — пошук триває, поруч кнопка «Ввести адресу вручну».
+   Назва пристрою один раз береться із системних налаштувань ТВ і зберігається (змінюється кнопкою
+   «Перейменувати» на екрані очікування).
+2. **Прив'язка через QR:** великий QR-код (для сканування телефоном у порталі) і цифровий код Quick Connect під
+   ним. Що має робити портал, описано в [`PORTAL_PAIRING.md`](PORTAL_PAIRING.md).
+3. **Екран очікування:** назва пристрою, сервер, акаунт, стан з'єднання, кнопки «Перейменувати» і «Відключити»
+   (також клавіша Menu).
 4. **Фонова служба:** Foreground Service. Тримає WebSocket `/socket` з перепідключенням (backoff 1 → 60 с),
    KeepAlive і реакцією на зміну мережі. Реєструє можливості сесії і стартує після ввімкнення ТВ.
 5. **Команди сервера:** `Play` (PlayNow; PlayNext/PlayLast трактуються як PlayNow), `Playstate`
@@ -39,14 +46,14 @@
 
 ```shell
 ./gradlew assembleDebug
-adb install -r app/build/outputs/apk/debug/movieportal-tv-v1.0.0-debug.apk
+adb install -r app/build/outputs/apk/debug/movieportal-tv-v1.1.1-debug.apk
 ```
 
 Release для Google Play:
 
 ```shell
-./gradlew bundleRelease     # app/build/outputs/bundle/release/movieportal-tv-v1.0.0-release.aab
-./gradlew assembleRelease   # app/build/outputs/apk/release/movieportal-tv-v1.0.0-release.apk
+./gradlew bundleRelease     # app/build/outputs/bundle/release/movieportal-tv-v1.1.1-release.aab
+./gradlew assembleRelease   # app/build/outputs/apk/release/movieportal-tv-v1.1.1-release.apk
 ```
 
 - **Версія:** `app.versionName` і `app.versionCode` у `gradle.properties`, або перевизначення
@@ -108,6 +115,8 @@ adb shell appops set ua.movieportal.tv SYSTEM_ALERT_WINDOW allow
   - профіль пристрою (`profile/deviceProfile.kt`): налаштування користувача замінено значеннями за замовчуванням,
     ASS/SSA рендерить вбудований парсер Media3;
   - логіку вибору DirectPlay / DirectStream / Transcode.
+- Додано (1.1.0): автопошук сервера в LAN, прив'язку через QR-код (`com.google.zxing:core`, Apache-2.0), назву
+  пристрою із системних налаштувань ТВ і перейменування.
 - Прибрано `.github/` (CI Jellyfin), `fastlane/` (опис магазину Jellyfin), `CODEOWNERS`, `renovate.json`.
 
 Детальний план і технічні рішення: [`RECEIVER_PLAN.md`](RECEIVER_PLAN.md).

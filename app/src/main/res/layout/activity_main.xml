@@ -7,7 +7,99 @@
     android:paddingEnd="96dp"
     android:paddingBottom="48dp">
 
-    <!-- Step 1: server address and device name -->
+    <!-- Step 1: automatic server discovery on the LAN -->
+    <LinearLayout
+        android:id="@+id/screen_discovery"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <TextView
+            style="@style/Text.MoviePortal.Title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/discovery_title" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ProgressBar
+                android:id="@+id/discovery_progress"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:layout_marginEnd="12dp"
+                android:indeterminateTint="@color/accent" />
+
+            <TextView
+                android:id="@+id/discovery_status"
+                style="@style/Text.MoviePortal.Body"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1" />
+        </LinearLayout>
+
+        <!-- Not focusable itself (set in code, ScrollView ignores the attribute): focus goes to the buttons -->
+        <ScrollView
+            android:id="@+id/discovery_scroll"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_marginTop="16dp"
+            android:layout_weight="1">
+
+            <LinearLayout
+                android:id="@+id/discovery_list"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
+        </ScrollView>
+
+        <!-- Shown instead of the list when the only working address is plain http -->
+        <LinearLayout
+            android:id="@+id/discovery_warning"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/discovery_warning_text"
+                style="@style/Text.MoviePortal.Body"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="@color/accent" />
+
+            <Button
+                android:id="@+id/discovery_insecure_connect"
+                style="@style/Widget.MoviePortal.Button"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="@string/insecure_connect_anyway" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/discovery_hint"
+            style="@style/Text.MoviePortal.Label"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:visibility="gone" />
+
+        <Button
+            android:id="@+id/discovery_manual"
+            style="@style/Widget.MoviePortal.Button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="@string/discovery_manual" />
+    </LinearLayout>
+
+    <!-- Fallback: manual server address -->
     <ScrollView
         android:id="@+id/screen_setup"
         android:layout_width="match_parent"
@@ -47,27 +139,8 @@
                 android:layout_marginTop="6dp"
                 android:autofillHints="url"
                 android:hint="@string/setup_server_hint"
-                android:imeOptions="actionNext|flagNoExtractUi"
-                android:inputType="textUri"
-                android:nextFocusDown="@id/setup_device_name" />
-
-            <TextView
-                style="@style/Text.MoviePortal.Label"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:labelFor="@id/setup_device_name"
-                android:text="@string/setup_device_name_label" />
-
-            <EditText
-                android:id="@+id/setup_device_name"
-                style="@style/Widget.MoviePortal.Input"
-                android:layout_width="640dp"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:importantForAutofill="no"
                 android:imeOptions="actionDone|flagNoExtractUi"
-                android:inputType="textCapSentences"
+                android:inputType="textUri"
                 android:nextFocusDown="@id/setup_connect" />
 
             <TextView
@@ -107,63 +180,89 @@
         </LinearLayout>
     </ScrollView>
 
-    <!-- Step 2: Quick Connect code -->
+    <!-- Step 2: Quick Connect pairing (QR code + digits) -->
     <LinearLayout
         android:id="@+id/screen_quick_connect"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:gravity="center"
-        android:orientation="vertical"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
         android:visibility="gone">
 
-        <TextView
-            style="@style/Text.MoviePortal.Title"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/qc_title" />
+        <!-- White frame around the code keeps contrast on the dark theme -->
+        <ImageView
+            android:id="@+id/qc_qr"
+            android:layout_width="@dimen/qr_size"
+            android:layout_height="@dimen/qr_size"
+            android:background="@android:color/white"
+            android:contentDescription="@string/qc_qr_description"
+            android:scaleType="centerInside" />
 
-        <TextView
-            android:id="@+id/qc_code"
-            android:layout_width="wrap_content"
+        <LinearLayout
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginTop="24dp"
-            android:fontFamily="monospace"
-            android:letterSpacing="0.25"
-            android:textColor="@color/accent"
-            android:textSize="120sp"
-            android:textStyle="bold" />
+            android:layout_marginStart="48dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
 
-        <TextView
-            style="@style/Text.MoviePortal.Body"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:gravity="center"
-            android:text="@string/qc_hint"
-            android:textSize="24sp" />
+            <TextView
+                style="@style/Text.MoviePortal.Title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/qc_title"
+                android:textSize="26sp" />
 
-        <TextView
-            android:id="@+id/qc_status"
-            style="@style/Text.MoviePortal.Label"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="24dp"
-            android:gravity="center" />
+            <TextView
+                android:id="@+id/qc_hint"
+                style="@style/Text.MoviePortal.Body"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="@string/qc_hint"
+                android:textSize="18sp" />
 
-        <TextView
-            android:id="@+id/qc_server"
-            style="@style/Text.MoviePortal.Label"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp" />
+            <TextView
+                style="@style/Text.MoviePortal.Label"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="@string/qc_code_label"
+                android:textSize="14sp" />
 
-        <Button
-            android:id="@+id/qc_change_server"
-            style="@style/Widget.MoviePortal.Button"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="24dp"
-            android:text="@string/qc_change_server" />
+            <TextView
+                android:id="@+id/qc_code"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="monospace"
+                android:letterSpacing="0.2"
+                android:textColor="@color/accent"
+                android:textSize="44sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/qc_status"
+                style="@style/Text.MoviePortal.Label"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/qc_server"
+                style="@style/Text.MoviePortal.Label"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:textSize="14sp" />
+
+            <Button
+                android:id="@+id/qc_change_server"
+                style="@style/Widget.MoviePortal.Button"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="@string/qc_change_server" />
+        </LinearLayout>
     </LinearLayout>
 
     <!-- Step 3: waiting for commands -->
@@ -230,6 +329,14 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/status_rename"
+                style="@style/Widget.MoviePortal.Button"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="16dp"
+                android:text="@string/status_rename" />
 
             <Button
                 android:id="@+id/status_disconnect"

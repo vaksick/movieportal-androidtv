@@ -12,14 +12,11 @@ class ConnectionTest : FunSpec({
 		(0..8).map(SessionSocket::backoffSeconds) shouldBe listOf(1, 2, 4, 8, 16, 32, 60, 60, 60)
 	}
 
-	test("plain http to public hosts is flagged") {
-		listOf("http://192.168.1.10:8096", "http://10.0.2.2:8096", "http://jellyfin:8096", "http://nas.local",
-			"http://100.101.1.2", "http://[fd00::1]:8096", "https://jf.example.org").forEach {
-			JellyfinClient.isInsecurePublicUrl(it) shouldBe false
+	test("any plain http address is flagged, LAN included") {
+		listOf("http://192.168.1.10:8096", "http://jellyfin:8096", "HTTP://jf.example.org").forEach {
+			JellyfinClient.isInsecureUrl(it) shouldBe true
 		}
-		listOf("http://jf.example.org", "http://8.8.8.8:8096", "http://172.32.0.1").forEach {
-			JellyfinClient.isInsecurePublicUrl(it) shouldBe true
-		}
+		JellyfinClient.isInsecureUrl("https://jf.example.org") shouldBe false
 	}
 
 	test("server address normalization") {
