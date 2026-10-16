@@ -43,9 +43,12 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.jellyfin.sdk.api.client.ApiClient
+import org.jellyfin.sdk.api.client.extensions.mediaSegmentsApi
 import org.jellyfin.sdk.api.client.extensions.tvShowsApi
 import org.jellyfin.sdk.api.client.extensions.userLibraryApi
 import org.jellyfin.sdk.model.api.BaseItemKind
+import org.jellyfin.sdk.model.api.MediaSegmentDto
+import org.jellyfin.sdk.model.api.MediaSegmentType
 import org.jellyfin.sdk.model.api.MediaStream
 import org.jellyfin.sdk.model.api.PlayMethod
 import org.jellyfin.sdk.model.serializer.toUUIDOrNull
@@ -76,6 +79,7 @@ class PlayerActivity : ComponentActivity() {
 	private lateinit var playerView: PlayerView
 	private lateinit var loading: View
 	private lateinit var panel: PlayerPanel
+	private lateinit var skipButton: SkipButton
 	private lateinit var volume: VolumeController
 
 	private lateinit var api: ApiClient
@@ -108,6 +112,13 @@ class PlayerActivity : ComponentActivity() {
 	private var loadJob: Job? = null
 	private var progressJob: Job? = null
 	private var closing = false
+
+	// Media segments (skip intro/credits) of the current item and the position check that shows the button
+	private var segmentsJob: Job? = null
+	private var skipTickJob: Job? = null
+
+	// The remote's Back was held: the matching key up must not act as a short press
+	private var backLongPressed = false
 
 	// Selection to go back to when a track switch needs a new stream and that request fails
 	private var restoreOnRestartFailure: Pair<Int?, Int?>? = null
@@ -174,6 +185,7 @@ class PlayerActivity : ComponentActivity() {
 			onTracks = ::showTracks,
 			onTimeBarKey = ::handleTimeBarKey,
 		)
+		skipButton = SkipButton(findViewById(R.id.player_skip), ::onSkip)
 
 		RemoteHub.activePlayer = playerToken
 		PlayerLauncher.cancelNotification(this)
@@ -184,6 +196,8 @@ class PlayerActivity : ComponentActivity() {
 				when {
 					panel.isTracksVisible -> panel.closeTracks()
 					panel.isVisible -> panel.hide()
+					// Not interested in skipping this segment: hide the button, keep playing
+					skipButton.isShown -> skipButton.dismiss()
 					else -> confirmStop()
 				}
 			}
@@ -310,6 +324,7 @@ class PlayerActivity : ComponentActivity() {
 
 		lifecycleScope.launch { loadTitle(itemId) }
 		findUpNext(request, itemId)
+		loadSegments(request, itemId)
 		load(itemId, request.startPositionTicks ?: 0, transcodeOnly = false)
 	}
 
@@ -454,6 +469,77 @@ class PlayerActivity : ComponentActivity() {
 			).content
 		}.items
 		return episodes.getOrNull(1)?.id?.takeIf { it != itemId }?.let { UpNext(it, emptyList(), isEpisode = true) }
+	}
+
+	/**
+	 * Media segments (`GET /MediaSegments/{itemId}`, Jellyfin 10.10+ with a segment provider plugin) for the skip
+	 * button. Older servers, no plugin or any error: no segments and no button, silently.
+	 */
+	private fun loadSegments(request: PlayRequest, itemId: UUID) {
+		segmentsJob?.cancel()
+		segmentsJob = lifecycleScope.launch {
+			val segments = try {
+				withContext(Dispatchers.IO) {
+					api.mediaSegmentsApi.getItemSegments(itemId = itemId, includeSegmentTypes = SKIPPABLE_SEGMENTS).content.items
+				}.mapNotNull(::toSegment)
+			} catch (err: CancellationException) {
+				throw err
+			} catch (err: Exception) {
+				Timber.d("No media segments for $itemId: ${err.message}")
+				emptyList()
+			}
+			if (this@PlayerActivity.request !== request) return@launch
+			skipButton.setSegments(segments)
+			if (skipButton.segments.isNotEmpty()) startSkipTicker()
+		}
+	}
+
+	private fun toSegment(dto: MediaSegmentDto): Segment? {
+		val kind = when (dto.type) {
+			MediaSegmentType.INTRO -> SegmentKind.INTRO
+			MediaSegmentType.RECAP -> SegmentKind.RECAP
+			MediaSegmentType.PREVIEW -> SegmentKind.PREVIEW
+			MediaSegmentType.COMMERCIAL -> SegmentKind.COMMERCIAL
+			MediaSegmentType.OUTRO -> SegmentKind.OUTRO
+			MediaSegmentType.UNKNOWN -> return null
+		}
+		return Segment(kind, dto.startTicks / PlaybackReporter.TICKS_PER_MS, dto.endTicks / PlaybackReporter.TICKS_PER_MS)
+	}
+
+	/** Shows/hides the skip button as playback enters and leaves segments (only items with segments). */
+	private fun startSkipTicker() {
+		skipTickJob?.cancel()
+		skipTickJob = lifecycleScope.launch {
+			while (isActive) {
+				if (started && !restarting) {
+					skipButton.update(
+						positionMs = player.currentPosition,
+						durationMs = player.duration.takeIf { it != C.TIME_UNSET },
+						hasNext = upNext != null,
+						panelBusy = panel.isVisible,
+					)
+				}
+				delay(SKIP_CHECK_INTERVAL_MS)
+			}
+		}
+	}
+
+	private fun onSkip(offer: SkipOffer) {
+		skipButton.hide()
+		when (val action = offer.action) {
+			is SkipAction.SeekTo -> seekFromSkip(action.positionMs)
+			SkipAction.PlayNext -> skipToNext()
+			// Credits run to the end: end the item (next item or back to the idle screen, as after playing out)
+			SkipAction.EndItem -> player.duration.takeIf { it != C.TIME_UNSET }?.let(::seekFromSkip)
+		}
+		panel.showInfo()
+	}
+
+	// Seek reported to the server like every other seek (onPositionDiscontinuity)
+	private fun seekFromSkip(positionMs: Long) {
+		handler.removeCallbacks(commitSeek)
+		seekTargetMs = null
+		player.seekTo(positionMs)
 	}
 
 	/** End of the item: the next episode / queued item, otherwise back to the idle screen. */
@@ -625,6 +711,9 @@ class PlayerActivity : ComponentActivity() {
 	private fun stopCurrent(failed: Boolean) {
 		loadJob?.cancel()
 		progressJob?.cancel()
+		segmentsJob?.cancel()
+		skipTickJob?.cancel()
+		if (::skipButton.isInitialized) skipButton.clear()
 		// A remote-key seek still pending belongs to this item
 		handler.removeCallbacks(commitSeek)
 		seekTargetMs = null
@@ -811,11 +900,21 @@ class PlayerActivity : ComponentActivity() {
 	// Android 16+ delivers Back to the dialog through OnBackInvokedDispatcher and never sends the key; the key listener
 	// below only matters on older TVs, where some remotes close the dialog on Back down and the matching Back up then
 	// reached the activity (and stopped playback)
+	// Holding Back in the dialog leaves the app like everywhere else in the player (the first key repeat is the long press).
 	@SuppressLint("GestureBackNavigation")
 	private fun showDialog(dialog: AlertDialog) {
+		var longPressed = false
 		dialog.setOnKeyListener { _, keyCode, event ->
 			if (keyCode != KeyEvent.KEYCODE_BACK) return@setOnKeyListener false
-			if (event.action == KeyEvent.ACTION_UP && !event.isCanceled) dialog.cancel()
+			when {
+				event.action == KeyEvent.ACTION_DOWN && event.repeatCount > 0 && !longPressed -> {
+					longPressed = true
+					dialog.dismiss()
+					exitToLauncher()
+				}
+
+				event.action == KeyEvent.ACTION_UP && !event.isCanceled && !longPressed -> dialog.cancel()
+			}
 			true
 		}
 		activeDialog?.dismiss()
@@ -838,9 +937,42 @@ class PlayerActivity : ComponentActivity() {
 		if (::panel.isInitialized) panel.onUserInteraction()
 	}
 
-	override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean = handleKey(event) || super.onKeyDown(keyCode, event)
+	// Back: short press = the usual steps (tracks → panel → skip button → stop dialog) through the dispatcher on key up,
+	// long press = stop and leave to the TV launcher. Back key events need enableOnBackInvokedCallback="false" on
+	// Android 16+ (see the manifest); TVs have no back gesture, so predictive back has nothing to animate here.
+	@SuppressLint("GestureBackNavigation")
+	override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+		if (keyCode == KeyEvent.KEYCODE_BACK) {
+			event.startTracking()
+			return true
+		}
+		return handleKey(event) || super.onKeyDown(keyCode, event)
+	}
 
-	override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean = handleKey(event) || super.onKeyUp(keyCode, event)
+	@SuppressLint("GestureBackNavigation")
+	override fun onKeyLongPress(keyCode: Int, event: KeyEvent): Boolean {
+		if (keyCode != KeyEvent.KEYCODE_BACK) return super.onKeyLongPress(keyCode, event)
+		backLongPressed = true
+		exitToLauncher()
+		return true
+	}
+
+	@SuppressLint("GestureBackNavigation")
+	override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
+		if (keyCode == KeyEvent.KEYCODE_BACK) {
+			if (!backLongPressed && event.isTracking && !event.isCanceled) onBackPressedDispatcher.onBackPressed()
+			backLongPressed = false
+			return true
+		}
+		return handleKey(event) || super.onKeyUp(keyCode, event)
+	}
+
+	/** Long Back: stop (normal "stopped" report) and go to the TV launcher, not to the idle screen. */
+	private fun exitToLauncher() {
+		close(failed = false, returnToMain = false)
+		// The idle screen may be below the player in the same task
+		finishAffinity()
+	}
 
 	/** Keys not consumed by a focused view; inside the interactive panel only media keys control playback. */
 	private fun handleKey(event: KeyEvent): Boolean {
@@ -873,8 +1005,8 @@ class PlayerActivity : ComponentActivity() {
 				if (down) seekBy(direction * MEDIA_KEY_SEEK_MS) else if (up) commitSeekNow()
 			}
 
-			KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_MENU -> if (down && event.repeatCount == 0) panel.showInteractive(PlayerPanel.Focus.PLAY_PAUSE)
-			KeyEvent.KEYCODE_DPAD_DOWN -> if (down && event.repeatCount == 0) panel.showInteractive(PlayerPanel.Focus.TIMELINE)
+			KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_MENU -> if (down && event.repeatCount == 0) showPanel(PlayerPanel.Focus.PLAY_PAUSE)
+			KeyEvent.KEYCODE_DPAD_DOWN -> if (down && event.repeatCount == 0) showPanel(PlayerPanel.Focus.TIMELINE)
 			KeyEvent.KEYCODE_INFO -> if (down) panel.showInfo()
 
 			KeyEvent.KEYCODE_MEDIA_STOP -> if (up) close(failed = false, returnToMain = true)
@@ -886,6 +1018,12 @@ class PlayerActivity : ComponentActivity() {
 			else -> return false
 		}
 		return true
+	}
+
+	/** The control panel takes over: the skip button gets out of the way (it comes back after the panel closes). */
+	private fun showPanel(focus: PlayerPanel.Focus) {
+		skipButton.hide()
+		panel.showInteractive(focus)
 	}
 
 	private fun isMediaKey(keyCode: Int) = keyCode in setOf(
@@ -958,6 +1096,15 @@ class PlayerActivity : ComponentActivity() {
 		private const val STOP_GRACE_MS = 2_500L
 		// Stream ready while the player never came to the front (or is hidden again)
 		private const val HIDDEN_START_GRACE_MS = 10_000L
+
+		private const val SKIP_CHECK_INTERVAL_MS = 500L
+		private val SKIPPABLE_SEGMENTS = listOf(
+			MediaSegmentType.INTRO,
+			MediaSegmentType.RECAP,
+			MediaSegmentType.PREVIEW,
+			MediaSegmentType.COMMERCIAL,
+			MediaSegmentType.OUTRO,
+		)
 
 		fun intent(context: Context): Intent = Intent(context, PlayerActivity::class.java)
 			.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

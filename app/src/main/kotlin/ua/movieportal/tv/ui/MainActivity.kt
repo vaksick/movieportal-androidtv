@@ -1,5 +1,6 @@
 package ua.movieportal.tv.ui
 
+import android.annotation.SuppressLint
 import android.os.Bundle
 import android.view.KeyEvent
 import android.view.View
@@ -43,6 +44,9 @@ class MainActivity : ComponentActivity() {
 	private lateinit var statusPermissions: PermissionsPanel
 
 	private var screen: Screen? = null
+
+	// The remote's Back was held: the matching key up must not act as a short press
+	private var backLongPressed = false
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
@@ -123,8 +127,24 @@ class MainActivity : ComponentActivity() {
 		if (hasFocus && currentFocus?.isShown != true) focusDefault()
 	}
 
+	// Back: short press = the screen's usual step through the dispatcher on key up, long press = close the UI and go to
+	// the TV launcher (the receiver service keeps running, the TV stays available in the portal). Back key events need
+	// enableOnBackInvokedCallback="false" on Android 16+ (see the manifest).
+	@SuppressLint("GestureBackNavigation")
+	override fun onKeyLongPress(keyCode: Int, event: KeyEvent): Boolean {
+		if (keyCode != KeyEvent.KEYCODE_BACK) return super.onKeyLongPress(keyCode, event)
+		backLongPressed = true
+		finish()
+		return true
+	}
+
 	// A D-pad key on a screen without focus (left in touch mode) reaches the activity and would do nothing at all
+	@SuppressLint("GestureBackNavigation")
 	override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+		if (keyCode == KeyEvent.KEYCODE_BACK) {
+			event.startTracking()
+			return true
+		}
 		if (keyCode in NAVIGATION_KEYS && currentFocus?.isShown != true) {
 			focusDefault()
 			return true
@@ -150,7 +170,13 @@ class MainActivity : ComponentActivity() {
 		setupScreen.hide()
 	}
 
+	@SuppressLint("GestureBackNavigation")
 	override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
+		if (keyCode == KeyEvent.KEYCODE_BACK) {
+			if (!backLongPressed && event.isTracking && !event.isCanceled) onBackPressedDispatcher.onBackPressed()
+			backLongPressed = false
+			return true
+		}
 		if (keyCode == KeyEvent.KEYCODE_MENU && screen == Screen.STATUS) {
 			statusScreen.confirmDisconnect()
 			return true

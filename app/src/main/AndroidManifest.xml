@@ -45,8 +45,13 @@
         android:usesCleartextTraffic="true"
         tools:ignore="UnusedAttribute">
 
+        <!--
+            enableOnBackInvokedCallback="false": the remote's Back must arrive as a key event (long press = leave the
+            app), also on Android 16+ where predictive back would otherwise swallow it. TVs have no back gesture.
+        -->
         <activity
             android:name=".ui.MainActivity"
+            android:enableOnBackInvokedCallback="false"
             android:exported="true"
             android:launchMode="singleTask"
             android:windowSoftInputMode="stateHidden|adjustPan">
@@ -60,6 +65,7 @@
 
         <activity
             android:name=".player.PlayerActivity"
+            android:enableOnBackInvokedCallback="false"
             android:configChanges="density|keyboard|keyboardHidden|navigation|orientation|screenLayout|screenSize|smallestScreenSize|uiMode"
             android:exported="false"
             android:launchMode="singleTask"

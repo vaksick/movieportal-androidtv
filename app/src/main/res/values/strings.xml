@@ -108,6 +108,10 @@
     <string name="player_play">Відтворити</string>
     <string name="player_pause">Пауза</string>
     <string name="player_next_episode">Наступна серія</string>
+    <string name="player_skip_intro">Пропустити заставку</string>
+    <string name="player_skip_recap">Пропустити переказ</string>
+    <string name="player_skip">Пропустити</string>
+    <string name="player_skip_credits">Пропустити титри</string>
     <string name="player_next_item">Далі</string>
     <string name="player_rewind">Назад 10 с</string>
     <string name="player_forward">Вперед 10 с</string>

@@ -20,6 +20,17 @@
         android:layout_gravity="center"
         android:indeterminateTint="@color/accent" />
 
+    <!-- Skip intro / credits (Jellyfin media segments): outside the control panel, visible while it is hidden -->
+    <Button
+        android:id="@+id/player_skip"
+        style="@style/Widget.MoviePortal.Button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="64dp"
+        android:layout_marginBottom="56dp"
+        android:visibility="gone" />
+
     <!-- Minimal control panel: timeline, audio and subtitle selection -->
     <LinearLayout
         android:id="@+id/player_panel"
