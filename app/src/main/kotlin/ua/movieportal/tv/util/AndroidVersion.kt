@@ -6,9 +6,6 @@ import android.os.Build
  * Named Android version checks, reads better than inline SDK_INT comparisons.
  */
 object AndroidVersion {
-	/** Android 7 Nougat, API 24. */
-	val isAtLeastN: Boolean get() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.N
-
 	/** Android 10 Q, API 29. */
 	val isAtLeastQ: Boolean get() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
 

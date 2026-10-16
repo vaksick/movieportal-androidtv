@@ -2,6 +2,8 @@
 <resources>
     <color name="background">#FF101418</color>
     <color name="surface">#FF1E252C</color>
+    <color name="dialog">#F2161B21</color>
+    <color name="track_selected">#FF2C343D</color>
     <color name="accent">#FFE5A00D</color>
     <color name="text_primary">#FFFFFFFF</color>
     <color name="text_secondary">#FFB0BAC4</color>

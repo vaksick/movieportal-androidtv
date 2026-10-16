@@ -1,5 +1,6 @@
 package ua.movieportal.tv.ui
 
+import android.annotation.SuppressLint
 import android.os.Bundle
 import android.view.KeyEvent
 import android.view.View
@@ -12,6 +13,7 @@ import androidx.core.view.isVisible
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.jellyfin.sdk.api.client.extensions.sessionApi
 import timber.log.Timber
@@ -43,6 +45,9 @@ class MainActivity : ComponentActivity() {
 
 	private var screen: Screen? = null
 
+	// The remote's Back was held: the matching key up must not act as a short press
+	private var backLongPressed = false
+
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
 		setContentView(R.layout.activity_main)
@@ -71,7 +76,7 @@ class MainActivity : ComponentActivity() {
 			onAuthenticated = { show(Screen.STATUS) },
 			onChangeServer = ::chooseServer,
 		)
-		statusScreen = StatusScreen(statusView, lifecycleScope, app.settings, ::disconnect, ::rename)
+		statusScreen = StatusScreen(statusView, lifecycleScope, app.settings, ::disconnect, ::rename, ::finish)
 		setupPermissions = PermissionsPanel(this, findViewById(R.id.setup_permissions))
 		statusPermissions = PermissionsPanel(this, findViewById(R.id.status_permissions))
 
@@ -113,6 +118,49 @@ class MainActivity : ComponentActivity() {
 		statusPermissions.refresh()
 	}
 
+	/**
+	 * Safety net for a screen without focus (touch mode after a mouse/pointer remote, focus lost to a hidden view):
+	 * the D-pad must always have a highlighted control to start from.
+	 */
+	override fun onWindowFocusChanged(hasFocus: Boolean) {
+		super.onWindowFocusChanged(hasFocus)
+		if (hasFocus && currentFocus?.isShown != true) focusDefault()
+	}
+
+	// Back: short press = the screen's usual step through the dispatcher on key up, long press = close the UI and go to
+	// the TV launcher (the receiver service keeps running, the TV stays available in the portal). Back key events need
+	// enableOnBackInvokedCallback="false" on Android 16+ (see the manifest).
+	@SuppressLint("GestureBackNavigation")
+	override fun onKeyLongPress(keyCode: Int, event: KeyEvent): Boolean {
+		if (keyCode != KeyEvent.KEYCODE_BACK) return super.onKeyLongPress(keyCode, event)
+		backLongPressed = true
+		finish()
+		return true
+	}
+
+	// A D-pad key on a screen without focus (left in touch mode) reaches the activity and would do nothing at all
+	@SuppressLint("GestureBackNavigation")
+	override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+		if (keyCode == KeyEvent.KEYCODE_BACK) {
+			event.startTracking()
+			return true
+		}
+		if (keyCode in NAVIGATION_KEYS && currentFocus?.isShown != true) {
+			focusDefault()
+			return true
+		}
+		return super.onKeyDown(keyCode, event)
+	}
+
+	private fun focusDefault() {
+		when (screen) {
+			Screen.STATUS -> statusScreen.focusDefault()
+			else -> visibleScreenView()?.requestFocusFromTouch()
+		}
+	}
+
+	private fun visibleScreenView(): View? = listOf(discoveryView, setupView, quickConnectView, statusView).firstOrNull { it.isVisible }
+
 	override fun onStop() {
 		super.onStop()
 		// Stop polling while invisible; onStart restarts the current step
@@ -122,7 +170,13 @@ class MainActivity : ComponentActivity() {
 		setupScreen.hide()
 	}
 
+	@SuppressLint("GestureBackNavigation")
 	override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
+		if (keyCode == KeyEvent.KEYCODE_BACK) {
+			if (!backLongPressed && event.isTracking && !event.isCanceled) onBackPressedDispatcher.onBackPressed()
+			backLongPressed = false
+			return true
+		}
 		if (keyCode == KeyEvent.KEYCODE_MENU && screen == Screen.STATUS) {
 			statusScreen.confirmDisconnect()
 			return true
@@ -178,7 +232,8 @@ class MainActivity : ComponentActivity() {
 		// Revoke the token on the server too (POST /Sessions/Logout), best effort
 		if (credentials != null) {
 			val api = app.jellyfin.createApi(credentials)
-			app.appScope.launch {
+			// SDK requests must run on IO (the SDK reads the response body on the calling dispatcher)
+			app.appScope.launch(Dispatchers.IO) {
 				runCatching { api.sessionApi.reportSessionEnded() }
 					.onFailure { Timber.w(it, "Logout request failed") }
 			}
@@ -190,5 +245,16 @@ class MainActivity : ComponentActivity() {
 	private fun rename(name: String) {
 		app.settings.deviceName = name
 		statusScreen.start()
+	}
+
+	private companion object {
+		val NAVIGATION_KEYS = setOf(
+			KeyEvent.KEYCODE_DPAD_UP,
+			KeyEvent.KEYCODE_DPAD_DOWN,
+			KeyEvent.KEYCODE_DPAD_LEFT,
+			KeyEvent.KEYCODE_DPAD_RIGHT,
+			KeyEvent.KEYCODE_DPAD_CENTER,
+			KeyEvent.KEYCODE_ENTER,
+		)
 	}
 }

@@ -77,12 +77,14 @@
     <string name="status_offline">Немає мережі</string>
     <string name="status_stopped">Служба зупинена</string>
     <string name="status_hint">Запустіть фільм у порталі кнопкою «Відтворити на…» і виберіть цей пристрій.</string>
+    <string name="status_close">Закрити</string>
     <string name="status_disconnect">Відключити</string>
     <string name="status_rename">Перейменувати</string>
     <string name="status_rename_title">Назва пристрою</string>
     <string name="status_rename_save">Зберегти</string>
     <string name="status_disconnect_confirm">Відключити пристрій від порталу? Потрібно буде знову прив\'язати його кодом.</string>
     <string name="cancel">Скасувати</string>
+    <string name="confirm_countdown">%1$s (%2$d)</string>
 
     <!-- Service and notifications -->
     <string name="channel_service">Зв\'язок з порталом</string>
@@ -96,9 +98,25 @@
 
     <!-- Player -->
     <string name="player_error">Не вдалося відтворити: %1$s</string>
-    <string name="player_audio">Аудіо</string>
+    <string name="player_audio">Звук</string>
+    <string name="player_tracks">Звук і субтитри</string>
+    <string name="player_track_change_failed">Не вдалося змінити доріжку. Відтворення триває з попередньою.</string>
     <string name="player_subtitles">Субтитри</string>
     <string name="player_subtitles_off">Вимкнено</string>
     <string name="player_stream_unknown">Доріжка %1$d</string>
     <string name="player_external">зовнішні</string>
+    <string name="player_play">Відтворити</string>
+    <string name="player_pause">Пауза</string>
+    <string name="player_next_episode">Наступна серія</string>
+    <string name="player_skip_intro">Пропустити заставку</string>
+    <string name="player_skip_recap">Пропустити переказ</string>
+    <string name="player_skip">Пропустити</string>
+    <string name="player_skip_credits">Пропустити титри</string>
+    <string name="player_next_item">Далі</string>
+    <string name="player_rewind">Назад 10 с</string>
+    <string name="player_forward">Вперед 10 с</string>
+    <string name="player_time">%1$s / %2$s</string>
+    <string name="player_stop_confirm">Зупинити відтворення?</string>
+    <string name="player_stop">Зупинити</string>
+    <string name="player_continue">Продовжити перегляд</string>
 </resources>

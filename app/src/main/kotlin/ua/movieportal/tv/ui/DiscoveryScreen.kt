@@ -61,7 +61,7 @@ class DiscoveryScreen(
 		hint.isVisible = false
 		status.setText(R.string.discovery_searching)
 		// post: the window may assign initial focus after this call
-		manualButton.post { if (!list.hasFocus()) manualButton.requestFocus() }
+		manualButton.post { if (!list.hasFocus()) manualButton.requestFocusFromTouch() }
 
 		job?.cancel()
 		job = scope.launch {
@@ -128,7 +128,7 @@ class DiscoveryScreen(
 			select(server)
 		}
 		// post: the button only becomes focusable after the layout pass that shows the warning
-		connectAnyway.post { connectAnyway.requestFocus() }
+		connectAnyway.post { connectAnyway.requestFocusFromTouch() }
 	}
 
 	private fun render(servers: List<DiscoveredServer>) {
@@ -178,7 +178,7 @@ class DiscoveryScreen(
 		}
 
 		// Focus the first server when the list appears (or was focused before the rebuild)
-		if (hadFocus || firstResult) list.getChildAt(0)?.takeIf { it.isFocusable }?.requestFocus()
+		if (hadFocus || firstResult) list.getChildAt(0)?.takeIf { it.isFocusable }?.requestFocusFromTouch()
 	}
 
 	private companion object {

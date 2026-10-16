@@ -42,27 +42,33 @@ internal object TokenCipher {
 	/** @return the token, or null when it can not be decrypted (e.g. the Keystore key was wiped). */
 	fun decrypt(stored: String): String? = when {
 		stored.startsWith(PREFIX_PLAIN) -> stored.removePrefix(PREFIX_PLAIN)
-		stored.startsWith(PREFIX_ENCRYPTED) -> try {
-			val (iv, ciphertext) = stored.removePrefix(PREFIX_ENCRYPTED).split(':', limit = 2)
-			val cipher = Cipher.getInstance(TRANSFORMATION)
-			cipher.init(Cipher.DECRYPT_MODE, getOrCreateKey(), GCMParameterSpec(TAG_BITS, iv.fromBase64()))
-			String(cipher.doFinal(ciphertext.fromBase64()), Charsets.UTF_8)
-		} catch (err: GeneralSecurityException) {
-			Timber.w(err, "Unable to decrypt the access token")
-			null
-		} catch (err: ProviderException) {
-			Timber.w(err, "Unable to decrypt the access token")
-			null
-		} catch (err: IllegalArgumentException) {
-			Timber.w(err, "Corrupted access token")
-			null
-		}
+		stored.startsWith(PREFIX_ENCRYPTED) -> decryptV1(stored.removePrefix(PREFIX_ENCRYPTED))
 
 		// Versions before 1.0.0 stored the token as is; AppSettings re-saves it encrypted
 		else -> stored
 	}
 
 	fun isEncrypted(stored: String) = stored.startsWith(PREFIX_ENCRYPTED)
+
+	/**
+	 * `<iv>:<ciphertext>`. Any failure (truncated value, bad Base64, wiped Keystore key, broken Keystore provider)
+	 * means "not paired": this runs in Application.onCreate, so it must never throw.
+	 */
+	private fun decryptV1(value: String): String? {
+		val parts = value.split(':', limit = 2)
+		if (parts.size != 2 || parts.any { it.isEmpty() }) {
+			Timber.w("Corrupted access token")
+			return null
+		}
+		return try {
+			val cipher = Cipher.getInstance(TRANSFORMATION)
+			cipher.init(Cipher.DECRYPT_MODE, getOrCreateKey(), GCMParameterSpec(TAG_BITS, parts[0].fromBase64()))
+			String(cipher.doFinal(parts[1].fromBase64()), Charsets.UTF_8)
+		} catch (err: Exception) {
+			Timber.w(err, "Unable to decrypt the access token")
+			null
+		}
+	}
 
 	private fun getOrCreateKey(): SecretKey {
 		val keyStore = KeyStore.getInstance(KEYSTORE).apply { load(null) }

@@ -50,7 +50,7 @@ class SetupScreen(
 				(event?.keyCode == KeyEvent.KEYCODE_ENTER && event.action == KeyEvent.ACTION_UP)
 			if (done) {
 				hideKeyboard()
-				connectButton.requestFocus()
+				connectButton.requestFocusFromTouch()
 			}
 			done
 		}
@@ -61,7 +61,7 @@ class SetupScreen(
 		message.text = ""
 		connectButton.isEnabled = true
 		// Start on the first empty field
-		if (serverInput.text.isNullOrBlank()) serverInput.requestFocus() else connectButton.requestFocus()
+		if (serverInput.text.isNullOrBlank()) serverInput.requestFocusFromTouch() else connectButton.requestFocusFromTouch()
 	}
 
 	fun hide() {
@@ -85,7 +85,7 @@ class SetupScreen(
 			serverInput.setText(serverUrl)
 			message.setTextColor(ContextCompat.getColor(context, R.color.accent))
 			message.text = context.getString(R.string.insecure_press_again, context.getString(R.string.insecure_warning))
-			connectButton.requestFocus()
+			connectButton.requestFocusFromTouch()
 			return
 		}
 
@@ -128,7 +128,7 @@ class SetupScreen(
 	private fun showError(text: String) {
 		message.setTextColor(ContextCompat.getColor(context, R.color.error))
 		message.text = text
-		serverInput.requestFocus()
+		serverInput.requestFocusFromTouch()
 	}
 
 	companion object {

@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Timeline playhead. DefaultTimeBar passes its drawable state to this drawable, so the focused timeline shows a
+    large dot with a white ring. Both states have the same 22dp bounds so the bar does not move.
+-->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <layer-list>
+            <item>
+                <shape android:shape="oval">
+                    <size android:width="22dp" android:height="22dp" />
+                    <solid android:color="@color/text_primary" />
+                </shape>
+            </item>
+            <item
+                android:bottom="3dp"
+                android:left="3dp"
+                android:right="3dp"
+                android:top="3dp">
+                <shape android:shape="oval">
+                    <solid android:color="@color/accent" />
+                </shape>
+            </item>
+        </layer-list>
+    </item>
+    <item>
+        <layer-list>
+            <item>
+                <shape android:shape="oval">
+                    <size android:width="22dp" android:height="22dp" />
+                    <solid android:color="@android:color/transparent" />
+                </shape>
+            </item>
+            <item
+                android:bottom="5dp"
+                android:left="5dp"
+                android:right="5dp"
+                android:top="5dp">
+                <shape android:shape="oval">
+                    <solid android:color="@color/accent" />
+                </shape>
+            </item>
+        </layer-list>
+    </item>
+</selector>

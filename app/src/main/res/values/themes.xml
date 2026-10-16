@@ -23,6 +23,36 @@
         <item name="android:focusable">true</item>
     </style>
 
+    <!-- Dialogs (track choice, stop/disconnect confirmation, rename) in the app's look instead of the system one -->
+    <style name="Theme.MoviePortal.Dialog" parent="android:Theme.DeviceDefault.Dialog.Alert">
+        <item name="android:windowBackground">@drawable/bg_dialog</item>
+        <item name="android:colorAccent">@color/accent</item>
+        <item name="android:textColorPrimary">@color/text_primary</item>
+        <item name="android:textColorSecondary">@color/text_secondary</item>
+        <item name="android:textColorAlertDialogListItem">@color/text_primary</item>
+        <item name="android:listChoiceBackgroundIndicator">@drawable/bg_list_item</item>
+        <item name="android:buttonBarButtonStyle">@style/Widget.MoviePortal.Button.Dialog</item>
+        <item name="android:buttonBarPositiveButtonStyle">@style/Widget.MoviePortal.Button.Dialog</item>
+        <item name="android:buttonBarNegativeButtonStyle">@style/Widget.MoviePortal.Button.Dialog</item>
+        <item name="android:buttonBarNeutralButtonStyle">@style/Widget.MoviePortal.Button.Dialog</item>
+    </style>
+
+    <style name="Widget.MoviePortal.Button.Dialog">
+        <item name="android:layout_marginStart">12dp</item>
+        <item name="android:textSize">17sp</item>
+    </style>
+
+    <style name="Widget.MoviePortal.IconButton" parent="android:Widget.DeviceDefault.ImageButton">
+        <item name="android:layout_width">56dp</item>
+        <item name="android:layout_height">56dp</item>
+        <item name="android:layout_marginEnd">8dp</item>
+        <item name="android:background">@drawable/bg_icon_button</item>
+        <item name="android:scaleType">center</item>
+        <item name="android:padding">0dp</item>
+        <item name="android:focusable">true</item>
+        <item name="android:nextFocusUp">@id/player_timebar</item>
+    </style>
+
     <style name="Widget.MoviePortal.Input" parent="android:Widget.DeviceDefault.EditText">
         <item name="android:background">@drawable/bg_input</item>
         <item name="android:textColor">@color/text_primary</item>

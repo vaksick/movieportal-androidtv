@@ -24,6 +24,15 @@ class RemoteMessageParserTest : FunSpec({
 		)
 	}
 
+	test("Play keeps the items after StartIndex as the queue") {
+		val message = """
+			{"MessageType":"Play","Data":{"ItemIds":["11111111111111111111111111111111","22222222222222222222222222222222",
+			"bad","33333333333333333333333333333333"],"StartIndex":1,"PlayCommand":"PlayNow"}}
+		""".trimIndent()
+
+		(RemoteMessageParser.parse(message) as RemoteCommand.Play).queue shouldBe listOf("33333333333333333333333333333333")
+	}
+
 	test("Play without optional fields") {
 		RemoteMessageParser.parse("""{"MessageType":"Play","Data":{"ItemIds":["01234567-89ab-cdef-0123-456789abcdef"],"PlayCommand":"PlayNext"}}""") shouldBe
 			RemoteCommand.Play("01234567-89ab-cdef-0123-456789abcdef", "PlayNext", null, null, null, null)

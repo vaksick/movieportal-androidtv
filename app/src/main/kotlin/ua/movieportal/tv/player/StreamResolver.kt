@@ -78,8 +78,10 @@ class StreamResolver(
 		audioStreamIndex: Int?,
 		subtitleStreamIndex: Int?,
 		mediaSourceId: String?,
-		allowDirectPlay: Boolean = true,
+		transcodeOnly: Boolean = false,
 	): ResolvedStream = withContext(Dispatchers.IO) {
+		// Fallback after the TV failed to decode the file: no direct play, no remux and no stream copy, otherwise the
+		// server may hand out the same undecodable codec again (e.g. HEVC Main10 or DTS as DIRECT_STREAM)
 		val response = api.mediaInfoApi.getPostedPlaybackInfo(
 			itemId = itemId,
 			data = PlaybackInfoDto(
@@ -90,11 +92,11 @@ class StreamResolver(
 				subtitleStreamIndex = subtitleStreamIndex,
 				mediaSourceId = mediaSourceId,
 				deviceProfile = deviceProfile(),
-				enableDirectPlay = allowDirectPlay,
-				enableDirectStream = true,
+				enableDirectPlay = !transcodeOnly,
+				enableDirectStream = !transcodeOnly,
 				enableTranscoding = true,
-				allowVideoStreamCopy = true,
-				allowAudioStreamCopy = true,
+				allowVideoStreamCopy = !transcodeOnly,
+				allowAudioStreamCopy = !transcodeOnly,
 				autoOpenLiveStream = true,
 			),
 		).content
@@ -106,7 +108,7 @@ class StreamResolver(
 			?: throw StreamException("No media source")
 
 		val (playMethod, url, mimeType) = when {
-			allowDirectPlay && source.supportsDirectPlay -> Triple(
+			!transcodeOnly && source.supportsDirectPlay -> Triple(
 				PlayMethod.DIRECT_PLAY,
 				if (source.isRemote && source.protocol == MediaProtocol.HTTP && source.path != null) source.path!!
 				else api.videosApi.getVideoStreamUrl(
@@ -121,7 +123,7 @@ class StreamResolver(
 				null,
 			)
 
-			source.supportsDirectStream && source.transcodingUrl != null -> Triple(
+			!transcodeOnly && source.supportsDirectStream && source.transcodingUrl != null -> Triple(
 				PlayMethod.DIRECT_STREAM,
 				api.createUrl(source.transcodingUrl!!, ignorePathParameters = true),
 				hlsMimeType(source),

@@ -16,10 +16,13 @@
 
     <!-- Opening the player from the background (Android 10+) -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <!-- Wakes the TV from the screensaver / ambient mode when the portal starts playback -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
+    <!-- TV only: Google Play offers the app to Android TV / Google TV devices, not to phones -->
     <uses-feature
         android:name="android.software.leanback"
-        android:required="false" />
+        android:required="true" />
     <uses-feature
         android:name="android.hardware.touchscreen"
         android:required="false" />
@@ -42,8 +45,13 @@
         android:usesCleartextTraffic="true"
         tools:ignore="UnusedAttribute">
 
+        <!--
+            enableOnBackInvokedCallback="false": the remote's Back must arrive as a key event (long press = leave the
+            app), also on Android 16+ where predictive back would otherwise swallow it. TVs have no back gesture.
+        -->
         <activity
             android:name=".ui.MainActivity"
+            android:enableOnBackInvokedCallback="false"
             android:exported="true"
             android:launchMode="singleTask"
             android:windowSoftInputMode="stateHidden|adjustPan">
@@ -57,6 +65,7 @@
 
         <activity
             android:name=".player.PlayerActivity"
+            android:enableOnBackInvokedCallback="false"
             android:configChanges="density|keyboard|keyboardHidden|navigation|orientation|screenLayout|screenSize|smallestScreenSize|uiMode"
             android:exported="false"
             android:launchMode="singleTask"
@@ -70,6 +79,11 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Keeps the Jellyfin session WebSocket open so a self-hosted media portal can start playback on this TV (remote playback receiver)." />
         </service>
+
+        <!-- Alarm that restarts the receiver service after Android refused a background restart (Android 12+) -->
+        <receiver
+            android:name=".service.ServiceRecoveryReceiver"
+            android:exported="false" />
 
         <receiver
             android:name=".service.BootReceiver"

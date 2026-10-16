@@ -2,7 +2,7 @@
 android-compileSdk = "37"
 android-desugar = "2.1.5"
 android-gradle = "9.4.1"
-android-minSdk = "23"
+android-minSdk = "24"
 android-targetSdk = "36"
 androidx-activity = "1.13.0"
 androidx-core = "1.19.1"
