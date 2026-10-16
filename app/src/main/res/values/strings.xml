@@ -97,9 +97,20 @@
 
     <!-- Player -->
     <string name="player_error">Не вдалося відтворити: %1$s</string>
-    <string name="player_audio">Аудіо</string>
+    <string name="player_audio">Звук</string>
+    <string name="player_tracks">Звук і субтитри</string>
     <string name="player_subtitles">Субтитри</string>
     <string name="player_subtitles_off">Вимкнено</string>
     <string name="player_stream_unknown">Доріжка %1$d</string>
     <string name="player_external">зовнішні</string>
+    <string name="player_play">Відтворити</string>
+    <string name="player_pause">Пауза</string>
+    <string name="player_next_episode">Наступна серія</string>
+    <string name="player_next_item">Далі</string>
+    <string name="player_rewind">Назад 10 с</string>
+    <string name="player_forward">Вперед 10 с</string>
+    <string name="player_time">%1$s / %2$s</string>
+    <string name="player_stop_confirm">Зупинити відтворення?</string>
+    <string name="player_stop">Зупинити</string>
+    <string name="player_continue">Продовжити перегляд</string>
 </resources>

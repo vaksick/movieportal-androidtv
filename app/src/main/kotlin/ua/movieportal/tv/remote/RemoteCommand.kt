@@ -36,6 +36,8 @@ sealed interface RemoteCommand {
 		val audioStreamIndex: Int?,
 		val subtitleStreamIndex: Int?,
 		val mediaSourceId: String?,
+		/** Items queued after [itemId] (the rest of `ItemIds`), played one after another. */
+		val queue: List<String> = emptyList(),
 	) : RemoteCommand
 
 	data class Player(val command: PlayerCommand) : RemoteCommand
@@ -99,6 +101,7 @@ object RemoteMessageParser {
 		val startIndex = data.int("StartIndex") ?: 0
 		val itemId = itemIds.getOrNull(startIndex) ?: itemIds.firstOrNull() ?: return RemoteCommand.Ignored("Play", "no items")
 		if (!GUID.matches(itemId)) return RemoteCommand.Ignored("Play", "invalid item id")
+		val queue = itemIds.drop(itemIds.indexOf(itemId) + 1).filter(GUID::matches).take(MAX_QUEUE)
 
 		return RemoteCommand.Play(
 			itemId = itemId,
@@ -107,6 +110,7 @@ object RemoteMessageParser {
 			audioStreamIndex = data.int("AudioStreamIndex")?.takeIf { it in STREAM_INDEX_RANGE },
 			subtitleStreamIndex = data.int("SubtitleStreamIndex")?.takeIf { it in STREAM_INDEX_RANGE },
 			mediaSourceId = data.string("MediaSourceId")?.takeIf { GUID.matches(it) },
+			queue = queue,
 		)
 	}
 
@@ -186,4 +190,7 @@ object RemoteMessageParser {
 
 	private const val DEFAULT_KEEP_ALIVE = 60
 	private const val MAX_VOLUME = 100
+
+	// Bounds a hostile or broken server message; a season or two of episodes fits easily
+	private const val MAX_QUEUE = 200
 }

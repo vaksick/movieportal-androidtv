@@ -43,69 +43,140 @@
             android:maxLines="1"
             android:textSize="26sp" />
 
+        <androidx.media3.ui.DefaultTimeBar
+            android:id="@+id/player_timebar"
+            android:layout_width="match_parent"
+            android:layout_height="40dp"
+            android:layout_marginTop="12dp"
+            android:focusable="true"
+            android:nextFocusDown="@id/player_play_pause"
+            app:played_color="@color/accent"
+            app:scrubber_color="@color/accent"
+            app:scrubber_drawable="@drawable/timebar_scrubber" />
+
+        <!-- Icon controls like the portal's web player -->
         <LinearLayout
+            android:id="@+id/player_buttons"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
+            android:layout_marginTop="8dp"
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
-            <TextView
-                android:id="@+id/player_position"
-                style="@style/Text.MoviePortal.Body"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:fontFamily="monospace" />
+            <ImageButton
+                android:id="@+id/player_play_pause"
+                style="@style/Widget.MoviePortal.IconButton"
+                android:contentDescription="@string/player_pause"
+                android:src="@drawable/ic_pause" />
 
-            <androidx.media3.ui.DefaultTimeBar
-                android:id="@+id/player_timebar"
+            <ImageButton
+                android:id="@+id/player_rewind"
+                style="@style/Widget.MoviePortal.IconButton"
+                android:contentDescription="@string/player_rewind"
+                android:src="@drawable/ic_replay_10" />
+
+            <ImageButton
+                android:id="@+id/player_forward"
+                style="@style/Widget.MoviePortal.IconButton"
+                android:contentDescription="@string/player_forward"
+                android:src="@drawable/ic_forward_10" />
+
+            <!-- Shown only when a next episode / queued item exists -->
+            <ImageButton
+                android:id="@+id/player_next"
+                style="@style/Widget.MoviePortal.IconButton"
+                android:contentDescription="@string/player_next_episode"
+                android:src="@drawable/ic_skip_next"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/player_time"
+                style="@style/Text.MoviePortal.Body"
                 android:layout_width="0dp"
-                android:layout_height="32dp"
+                android:layout_height="wrap_content"
                 android:layout_marginStart="16dp"
-                android:layout_marginEnd="16dp"
                 android:layout_weight="1"
-                android:focusable="false"
-                app:played_color="@color/accent"
-                app:scrubber_color="@color/accent" />
+                android:fontFamily="monospace" />
+
+            <ImageButton
+                android:id="@+id/player_tracks_button"
+                style="@style/Widget.MoviePortal.IconButton"
+                android:layout_marginEnd="0dp"
+                android:contentDescription="@string/player_tracks"
+                android:src="@drawable/ic_subtitles" />
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- Audio and subtitle choice, above the control panel on the right (like the portal's web player) -->
+    <LinearLayout
+        android:id="@+id/player_tracks"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="end|bottom"
+        android:layout_marginEnd="48dp"
+        android:background="@drawable/bg_tracks"
+        android:orientation="horizontal"
+        android:padding="20dp"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="@dimen/track_column_width"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
 
             <TextView
-                android:id="@+id/player_duration"
                 style="@style/Text.MoviePortal.Body"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:fontFamily="monospace" />
+                android:layout_marginStart="12dp"
+                android:layout_marginBottom="8dp"
+                android:text="@string/player_audio"
+                android:textSize="20sp"
+                android:textStyle="bold" />
+
+            <ScrollView
+                android:id="@+id/player_tracks_audio_scroll"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:scrollbars="none">
+
+                <LinearLayout
+                    android:id="@+id/player_tracks_audio"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical" />
+            </ScrollView>
         </LinearLayout>
 
         <LinearLayout
-            android:id="@+id/player_buttons"
-            android:layout_width="wrap_content"
+            android:layout_width="@dimen/track_column_width"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:orientation="horizontal">
+            android:layout_marginStart="24dp"
+            android:orientation="vertical">
 
             <TextView
-                android:id="@+id/player_state"
                 style="@style/Text.MoviePortal.Body"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_gravity="center_vertical"
-                android:layout_marginEnd="24dp"
-                android:textSize="28sp" />
+                android:layout_marginStart="12dp"
+                android:layout_marginBottom="8dp"
+                android:text="@string/player_subtitles"
+                android:textSize="20sp"
+                android:textStyle="bold" />
 
-            <Button
-                android:id="@+id/player_audio"
-                style="@style/Widget.MoviePortal.Button"
-                android:layout_width="wrap_content"
+            <ScrollView
+                android:id="@+id/player_tracks_subtitles_scroll"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginEnd="16dp"
-                android:text="@string/player_audio" />
+                android:scrollbars="none">
 
-            <Button
-                android:id="@+id/player_subtitles"
-                style="@style/Widget.MoviePortal.Button"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/player_subtitles" />
+                <LinearLayout
+                    android:id="@+id/player_tracks_subtitles"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical" />
+            </ScrollView>
         </LinearLayout>
     </LinearLayout>
 </FrameLayout>

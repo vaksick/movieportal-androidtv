@@ -29,6 +29,8 @@ data class PlayRequest(
 	val audioStreamIndex: Int?,
 	val subtitleStreamIndex: Int?,
 	val mediaSourceId: String?,
+	/** Items to play after this one (rest of the portal's queue). */
+	val queue: List<String> = emptyList(),
 )
 
 /**
@@ -70,6 +72,7 @@ object RemoteHub {
 			audioStreamIndex = command.audioStreamIndex,
 			subtitleStreamIndex = command.subtitleStreamIndex,
 			mediaSourceId = command.mediaSourceId,
+			queue = command.queue,
 		)
 		_playRequest.value = request
 		return request

@@ -41,7 +41,9 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.jellyfin.sdk.api.client.ApiClient
+import org.jellyfin.sdk.api.client.extensions.tvShowsApi
 import org.jellyfin.sdk.api.client.extensions.userLibraryApi
+import org.jellyfin.sdk.model.api.BaseItemKind
 import org.jellyfin.sdk.model.api.MediaStream
 import org.jellyfin.sdk.model.api.PlayMethod
 import org.jellyfin.sdk.model.serializer.toUUIDOrNull
@@ -54,6 +56,7 @@ import ua.movieportal.tv.remote.PlayRequest
 import ua.movieportal.tv.remote.PlayerCommand
 import ua.movieportal.tv.remote.RemoteHub
 import ua.movieportal.tv.service.PlayerLauncher
+import ua.movieportal.tv.ui.ConfirmDialog
 import ua.movieportal.tv.ui.MainActivity
 import ua.movieportal.tv.util.VolumeController
 import java.util.UUID
@@ -74,6 +77,7 @@ class PlayerActivity : ComponentActivity() {
 	private lateinit var volume: VolumeController
 
 	private lateinit var api: ApiClient
+	private lateinit var userId: UUID
 	private lateinit var deviceId: String
 	private lateinit var resolver: StreamResolver
 	private lateinit var reporter: PlaybackReporter
@@ -83,6 +87,9 @@ class PlayerActivity : ComponentActivity() {
 
 	// Current item
 	private var request: PlayRequest? = null
+	// What follows the current item (looked up when it starts); null: nothing or not known yet
+	private var upNext: UpNext? = null
+	private var upNextJob: Job? = null
 	private var stream: ResolvedStream? = null
 	private var selectedAudio: Int? = null
 	private var selectedSubtitle: Int? = null
@@ -102,6 +109,9 @@ class PlayerActivity : ComponentActivity() {
 
 	// Seeking with the remote: steps accumulate while the key is held and are committed once
 	private var seekTargetMs: Long? = null
+
+	// Track/stop dialog currently shown; dismissed when the player closes
+	private var activeDialog: AlertDialog? = null
 	private val commitSeek = Runnable {
 		seekTargetMs?.let { player.seekTo(it) }
 		seekTargetMs = null
@@ -121,7 +131,8 @@ class PlayerActivity : ComponentActivity() {
 		volume = VolumeController(this)
 		deviceId = app.settings.deviceId
 		api = app.jellyfin.createApi(credentials)
-		resolver = StreamResolver(api, requireNotNull(credentials.userId.toUUIDOrNull())) { deviceProfile }
+		userId = requireNotNull(credentials.userId.toUUIDOrNull())
+		resolver = StreamResolver(api, userId) { deviceProfile }
 		reporter = PlaybackReporter(api, app.appScope, deviceId)
 
 		player = buildPlayer(credentials.serverUrl, credentials.accessToken)
@@ -129,16 +140,28 @@ class PlayerActivity : ComponentActivity() {
 		playerView = findViewById(R.id.player_view)
 		playerView.player = player
 		loading = findViewById(R.id.player_loading)
-		panel = PlayerPanel(findViewById(android.R.id.content), player, ::showAudioDialog, ::showSubtitleDialog)
+		panel = PlayerPanel(
+			findViewById(android.R.id.content),
+			player,
+			onPlayPause = { setPlaying(!player.playWhenReady) },
+			onRewind = { seekBy(-BUTTON_SEEK_MS) },
+			onForward = { seekBy(BUTTON_SEEK_MS) },
+			onNext = ::skipToNext,
+			onTracks = ::showTracks,
+			onTimeBarKey = ::handleTimeBarKey,
+		)
 
 		RemoteHub.activePlayer = playerToken
 		PlayerLauncher.cancelNotification(this)
 
-		// Back hides a visible panel first, then stops playback and returns to the idle screen
+		// Back hides a visible panel first; on plain video it asks before stopping (a stray press must not end playback)
 		onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
 			override fun handleOnBackPressed() {
-				if (panel.isVisible) panel.hide()
-				else close(failed = false, returnToMain = true)
+				when {
+					panel.isTracksVisible -> panel.closeTracks()
+					panel.isVisible -> panel.hide()
+					else -> confirmStop()
+				}
 			}
 		})
 
@@ -211,6 +234,8 @@ class PlayerActivity : ComponentActivity() {
 		stopCurrent(failed = false)
 
 		this.request = request
+		upNext = null
+		panel.setNext(null)
 		selectedAudio = request.audioStreamIndex
 		selectedSubtitle = request.subtitleStreamIndex
 		triedTranscodeFallback = false
@@ -224,6 +249,7 @@ class PlayerActivity : ComponentActivity() {
 		}
 
 		lifecycleScope.launch { loadTitle(itemId) }
+		findUpNext(request, itemId)
 		load(itemId, request.startPositionTicks ?: 0, allowDirectPlay = true)
 	}
 
@@ -304,6 +330,103 @@ class PlayerActivity : ComponentActivity() {
 		if (request?.itemId?.toUUIDOrNull() == itemId) panel.setTitle(title)
 	}
 
+	/** The item after the current one and the queue after that. */
+	private data class UpNext(val itemId: UUID, val queue: List<String>, val isEpisode: Boolean)
+
+	/** Looks up what follows [itemId] so the panel can offer "next" (and the end of the item does not wait for it). */
+	private fun findUpNext(request: PlayRequest, itemId: UUID) {
+		upNextJob?.cancel()
+		upNextJob = lifecycleScope.launch {
+			val next = try {
+				lookUpNext(request, itemId)
+			} catch (err: CancellationException) {
+				throw err
+			} catch (err: Exception) {
+				Timber.w(err, "Unable to find the next item")
+				null
+			}
+			if (this@PlayerActivity.request !== request) return@launch
+			upNext = next
+			panel.setNext(next?.let { getString(if (it.isEpisode) R.string.player_next_episode else R.string.player_next_item) })
+		}
+	}
+
+	private suspend fun lookUpNext(request: PlayRequest, itemId: UUID): UpNext? {
+		request.queue.firstOrNull()?.toUUIDOrNull()?.let { queued ->
+			// The portal queues the rest of a season as plain items: still label it as the next episode
+			val type = withContext(Dispatchers.IO) { api.userLibraryApi.getItem(itemId = queued).content }.type
+			return UpNext(queued, request.queue.drop(1), isEpisode = type == BaseItemKind.EPISODE)
+		}
+
+		val item = withContext(Dispatchers.IO) { api.userLibraryApi.getItem(itemId = itemId).content }
+		val seriesId = item.seriesId
+		if (item.type != BaseItemKind.EPISODE || seriesId == null) return null
+
+		// Episodes in series order starting with the current one; the second one is next (also across seasons)
+		val episodes = withContext(Dispatchers.IO) {
+			api.tvShowsApi.getEpisodes(
+				seriesId = seriesId,
+				userId = userId,
+				isMissing = false,
+				startItemId = itemId,
+				limit = 2,
+			).content
+		}.items
+		return episodes.getOrNull(1)?.id?.takeIf { it != itemId }?.let { UpNext(it, emptyList(), isEpisode = true) }
+	}
+
+	/** End of the item: the next episode / queued item, otherwise back to the idle screen. */
+	private fun playNextOrClose() {
+		if (closing) return
+		lifecycleScope.launch {
+			// The lookup started with the item; on a very short item it may still be running
+			upNextJob?.join()
+			if (upNext != null) skipToNext() else close(failed = false, returnToMain = true)
+		}
+	}
+
+	/** "Next" button, the remote's next key and the end of the item: same audio/subtitle languages as now. */
+	private fun skipToNext() {
+		val current = request ?: return
+		val ended = stream ?: return
+		val next = upNext ?: return
+		if (closing) return
+		commitSeekNow()
+		upNext = null
+		loadJob?.cancel()
+		loading.isVisible = true
+
+		lifecycleScope.launch {
+			val tracks = try {
+				val streams = withContext(Dispatchers.IO) { api.userLibraryApi.getItem(itemId = next.itemId).content }.mediaStreams
+				NextItemTracks.choose(
+					previousAudio = ended.audioStreams.firstOrNull { it.index == selectedAudio },
+					previousSubtitle = ended.subtitleStreams.firstOrNull { it.index == selectedSubtitle },
+					subtitlesOff = selectedSubtitle == -1,
+					nextStreams = streams.orEmpty(),
+				)
+			} catch (err: CancellationException) {
+				throw err
+			} catch (err: Exception) {
+				Timber.w(err, "Unable to load the next item's streams, using server defaults")
+				NextItemTracks.Choice(audioStreamIndex = null, subtitleStreamIndex = null)
+			}
+
+			Timber.i("Playing next item ${next.itemId} (queued after it: ${next.queue.size})")
+			play(
+				current.copy(
+					itemId = next.itemId.toString(),
+					startPositionTicks = 0,
+					audioStreamIndex = tracks.audioStreamIndex,
+					subtitleStreamIndex = tracks.subtitleStreamIndex,
+					mediaSourceId = null,
+					queue = next.queue,
+				),
+			)
+			panel.showInfo()
+		}
+	}
+
 	/** Re-request the stream from the server at the current position (transcoded audio/subtitle switch). */
 	private fun restartStream(allowDirectPlay: Boolean) {
 		val itemId = stream?.itemId ?: return
@@ -334,7 +457,7 @@ class PlayerActivity : ComponentActivity() {
 					restarting = false
 				}
 
-				Player.STATE_ENDED -> close(failed = false, returnToMain = true)
+				Player.STATE_ENDED -> playNextOrClose()
 				else -> Unit
 			}
 		}
@@ -424,6 +547,8 @@ class PlayerActivity : ComponentActivity() {
 	private fun close(failed: Boolean, returnToMain: Boolean) {
 		if (closing) return
 		closing = true
+		activeDialog?.dismiss()
+		activeDialog = null
 		releaseHub()
 		stopCurrent(failed)
 		// Launched from the background the player is alone in its task: show the idle screen behind it
@@ -516,45 +641,50 @@ class PlayerActivity : ComponentActivity() {
 		}
 	}
 
-	private fun showAudioDialog() {
+	/** "Audio and subtitles" button: both lists side by side; a choice applies at once and the panel stays open. */
+	private fun showTracks() {
 		val current = stream ?: return
-		val streams = current.audioStreams
-		if (streams.isEmpty()) return
-		showStreamDialog(R.string.player_audio, streams.map(::streamLabel), streams.indexOfFirst { it.index == selectedAudio }) { which ->
-			setAudio(streams[which].index, allowRestart = true)
-		}
+		val audio = current.audioStreams.map { TrackPanel.Row(it.index, streamLabel(it)) }
+		// No subtitle tracks: no subtitle column at all (an "off"-only list is noise)
+		val subtitles = if (current.subtitleStreams.isEmpty()) emptyList() else
+			listOf(TrackPanel.Row(-1, getString(R.string.player_subtitles_off))) +
+				current.subtitleStreams.map { TrackPanel.Row(it.index, streamLabel(it)) }
+		panel.showTracks(
+			audio = audio,
+			selectedAudio = selectedAudio,
+			subtitles = subtitles,
+			selectedSubtitle = selectedSubtitle ?: -1,
+			onAudio = { index ->
+				setAudio(index, allowRestart = true)
+				panel.updateTracks(selectedAudio, selectedSubtitle ?: -1)
+			},
+			onSubtitle = { index ->
+				setSubtitle(index, allowRestart = true)
+				panel.updateTracks(selectedAudio, selectedSubtitle ?: -1)
+			},
+		)
 	}
 
-	private fun showSubtitleDialog() {
-		val current = stream ?: return
-		val streams = current.subtitleStreams
-		val labels = listOf(getString(R.string.player_subtitles_off)) + streams.map(::streamLabel)
-		val checked = streams.indexOfFirst { it.index == selectedSubtitle }.let { if (it < 0) 0 else it + 1 }
-		showStreamDialog(R.string.player_subtitles, labels, checked) { which ->
-			setSubtitle(if (which == 0) -1 else streams[which - 1].index, allowRestart = true)
+	/** Back on plain video: confirm before stopping, "continue" is focused so an accidental OK keeps playing. */
+	private fun confirmStop() {
+		val dialog = ConfirmDialog.create(this, R.string.player_stop_confirm, R.string.player_stop, R.string.player_continue) {
+			close(failed = false, returnToMain = true)
 		}
+		showDialog(dialog)
 	}
 
 	// Android 16+ delivers Back to the dialog through OnBackInvokedDispatcher and never sends the key; the key listener
-	// below only matters on older TVs, where the stray Back release reached the activity
+	// below only matters on older TVs, where some remotes close the dialog on Back down and the matching Back up then
+	// reached the activity (and stopped playback)
 	@SuppressLint("GestureBackNavigation")
-	private fun showStreamDialog(title: Int, labels: List<String>, checked: Int, onSelected: (Int) -> Unit) {
-		val dialog = AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
-			.setTitle(title)
-			.setSingleChoiceItems(labels.toTypedArray(), checked) { dialog, which ->
-				dialog.dismiss()
-				onSelected(which)
-			}
-			.create()
-		// Some remotes close the dialog on Back down and the activity then gets the matching Back up, which stopped
-		// playback: the dialog consumes both halves of the key and closes on release
+	private fun showDialog(dialog: AlertDialog) {
 		dialog.setOnKeyListener { _, keyCode, event ->
 			if (keyCode != KeyEvent.KEYCODE_BACK) return@setOnKeyListener false
 			if (event.action == KeyEvent.ACTION_UP && !event.isCanceled) dialog.cancel()
 			true
 		}
-		// Back to the panel the dialog was opened from (it may have timed out while the dialog had the keys)
-		dialog.setOnDismissListener { if (!closing) panel.showInteractive() }
+		activeDialog?.dismiss()
+		activeDialog = dialog
 		dialog.show()
 	}
 
@@ -608,13 +738,15 @@ class PlayerActivity : ComponentActivity() {
 				if (down) seekBy(direction * MEDIA_KEY_SEEK_MS) else if (up) commitSeekNow()
 			}
 
-			KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_MENU -> if (down && event.repeatCount == 0) panel.showInteractive()
-			KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_INFO -> if (down) panel.showInfo()
+			KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_MENU -> if (down && event.repeatCount == 0) panel.showInteractive(PlayerPanel.Focus.PLAY_PAUSE)
+			KeyEvent.KEYCODE_DPAD_DOWN -> if (down && event.repeatCount == 0) panel.showInteractive(PlayerPanel.Focus.TIMELINE)
+			KeyEvent.KEYCODE_INFO -> if (down) panel.showInfo()
 
 			KeyEvent.KEYCODE_MEDIA_STOP -> if (up) close(failed = false, returnToMain = true)
 
-			// No queue: next/previous are ignored
-			KeyEvent.KEYCODE_MEDIA_NEXT, KeyEvent.KEYCODE_MEDIA_PREVIOUS -> Unit
+			KeyEvent.KEYCODE_MEDIA_NEXT -> if (down && event.repeatCount == 0) skipToNext()
+			// No history to go back to
+			KeyEvent.KEYCODE_MEDIA_PREVIOUS -> Unit
 
 			else -> return false
 		}
@@ -633,6 +765,30 @@ class PlayerActivity : ComponentActivity() {
 	)
 
 	/** 10 s per press; holding the key accelerates to 30 s and then 60 s steps. */
+	/** Keys on the focused timeline: ←/→ seek, OK play/pause, ↑ hides the panel (the timeline is its top element). */
+	private fun handleTimeBarKey(event: KeyEvent): Boolean {
+		val down = event.action == KeyEvent.ACTION_DOWN
+		val up = event.action == KeyEvent.ACTION_UP
+		when (event.keyCode) {
+			KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> {
+				val direction = if (event.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) 1 else -1
+				if (down) seekBy(direction * seekStepMs(event.repeatCount)) else if (up) commitSeekNow()
+			}
+
+			KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> {
+				if (down && event.repeatCount == 0) {
+					commitSeekNow()
+					setPlaying(!player.playWhenReady)
+				}
+			}
+
+			KeyEvent.KEYCODE_DPAD_UP -> if (down && event.repeatCount == 0) panel.hide()
+
+			else -> return false
+		}
+		return true
+	}
+
 	private fun seekStepMs(repeatCount: Int): Long = when {
 		repeatCount < 8 -> 10_000L
 		repeatCount < 24 -> 30_000L
@@ -660,6 +816,7 @@ class PlayerActivity : ComponentActivity() {
 		private const val PROGRESS_INTERVAL_MS = 10_000L
 		private const val SEEK_COMMIT_DELAY_MS = 700L
 		private const val MEDIA_KEY_SEEK_MS = 30_000L
+		private const val BUTTON_SEEK_MS = 10_000L
 
 		fun intent(context: Context): Intent = Intent(context, PlayerActivity::class.java)
 			.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

@@ -65,13 +65,8 @@ class StatusScreen(
 
 	/** Shows the disconnect confirmation (button or the remote's menu key). */
 	fun confirmDisconnect() {
-		AlertDialog.Builder(context, android.R.style.Theme_DeviceDefault_Dialog_Alert)
-			.setMessage(R.string.status_disconnect_confirm)
-			.setPositiveButton(R.string.status_disconnect) { _, _ -> onDisconnect() }
-			.setNegativeButton(R.string.cancel, null)
+		ConfirmDialog.create(context, R.string.status_disconnect_confirm, R.string.status_disconnect, R.string.cancel, onDisconnect)
 			.show()
-			.getButton(AlertDialog.BUTTON_NEGATIVE)
-			.requestFocus()
 	}
 
 	/** The device name defaults to the TV's system name; it can be changed here without the setup flow. */
@@ -87,7 +82,7 @@ class StatusScreen(
 			setPadding(padding, 0, padding, 0)
 			addView(input)
 		}
-		AlertDialog.Builder(context, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+		AlertDialog.Builder(context, R.style.Theme_MoviePortal_Dialog)
 			.setTitle(R.string.status_rename_title)
 			.setView(container)
 			.setPositiveButton(R.string.status_rename_save) { _, _ ->

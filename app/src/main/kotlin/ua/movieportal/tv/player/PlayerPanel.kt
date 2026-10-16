@@ -2,8 +2,9 @@ package ua.movieportal.tv.player
 
 import android.os.Handler
 import android.os.Looper
+import android.view.KeyEvent
 import android.view.View
-import android.widget.Button
+import android.widget.ImageButton
 import android.widget.TextView
 import androidx.core.view.isVisible
 import androidx.media3.common.C
@@ -17,23 +18,32 @@ import java.util.Locale
  * Bottom panel with the title, timeline and the audio/subtitle buttons.
  *
  * - "info" mode: visible without focus (after seeking or while paused), the remote keeps controlling playback;
- * - "interactive" mode (key up): focus on the buttons, D-pad navigates the panel.
+ * - "interactive" mode (key up / down): focus on the buttons or the timeline, D-pad navigates the panel.
  */
 @UnstableApi
 class PlayerPanel(
 	root: View,
 	private val player: Player,
-	onAudio: () -> Unit,
-	onSubtitles: () -> Unit,
+	onPlayPause: () -> Unit,
+	onRewind: () -> Unit,
+	onForward: () -> Unit,
+	onNext: () -> Unit,
+	onTracks: () -> Unit,
+	onTimeBarKey: (KeyEvent) -> Boolean,
 ) {
+	/** Element focused when the interactive panel opens. */
+	enum class Focus { TIMELINE, PLAY_PAUSE, TRACKS }
+
 	private val panel = root.findViewById<View>(R.id.player_panel)
 	private val title = root.findViewById<TextView>(R.id.player_title)
-	private val position = root.findViewById<TextView>(R.id.player_position)
-	private val duration = root.findViewById<TextView>(R.id.player_duration)
+	private val time = root.findViewById<TextView>(R.id.player_time)
 	private val timeBar = root.findViewById<DefaultTimeBar>(R.id.player_timebar)
-	private val state = root.findViewById<TextView>(R.id.player_state)
-	private val audioButton = root.findViewById<Button>(R.id.player_audio)
-	private val subtitlesButton = root.findViewById<Button>(R.id.player_subtitles)
+	private val playPauseButton = root.findViewById<ImageButton>(R.id.player_play_pause)
+	private val rewindButton = root.findViewById<ImageButton>(R.id.player_rewind)
+	private val forwardButton = root.findViewById<ImageButton>(R.id.player_forward)
+	private val nextButton = root.findViewById<ImageButton>(R.id.player_next)
+	private val tracksButton = root.findViewById<ImageButton>(R.id.player_tracks_button)
+	private val tracks = TrackPanel(root)
 
 	private val handler = Handler(Looper.getMainLooper())
 	private val hideRunnable = Runnable { hide() }
@@ -52,8 +62,49 @@ class PlayerPanel(
 	val isVisible get() = panel.isVisible
 
 	init {
-		audioButton.setOnClickListener { onAudio() }
-		subtitlesButton.setOnClickListener { onSubtitles() }
+		playPauseButton.setOnClickListener { onPlayPause() }
+		rewindButton.setOnClickListener { onRewind() }
+		forwardButton.setOnClickListener { onForward() }
+		nextButton.setOnClickListener { onNext() }
+		tracksButton.setOnClickListener { onTracks() }
+		// The activity drives seeking (with the pending-seek preview) instead of DefaultTimeBar's own scrubbing
+		timeBar.setOnKeyListener { _, _, event -> onTimeBarKey(event) }
+	}
+
+	val isTracksVisible get() = tracks.isVisible
+
+	/** Opens the audio/subtitle columns above the panel content (the panel itself stays open). */
+	fun showTracks(
+		audio: List<TrackPanel.Row>,
+		selectedAudio: Int?,
+		subtitles: List<TrackPanel.Row>,
+		selectedSubtitle: Int?,
+		onAudio: (Int) -> Unit,
+		onSubtitle: (Int) -> Unit,
+	) {
+		showInteractive(Focus.TRACKS)
+		val rootView = panel.rootView
+		val gap = (TRACKS_GAP_DP * rootView.resources.displayMetrics.density).toInt()
+		// Bottom of the track panel just above the title: the timeline and the buttons stay visible
+		val titleTop = IntArray(2).also(title::getLocationInWindow)[1]
+		val windowHeight = rootView.height
+		val bottom = windowHeight - titleTop + gap
+		tracks.show(audio, selectedAudio, subtitles, selectedSubtitle, bottom, titleTop - gap * 2, onAudio, onSubtitle)
+	}
+
+	fun updateTracks(selectedAudio: Int?, selectedSubtitle: Int?) = tracks.updateSelection(selectedAudio, selectedSubtitle)
+
+	/** Back in the track panel: close it and return to the button that opened it. */
+	fun closeTracks() {
+		tracks.hide()
+		showInteractive(Focus.TRACKS)
+	}
+
+	/** Label of the "next" button, or null to hide it (nothing follows the current item). */
+	fun setNext(label: String?) {
+		if (label == null && nextButton.hasFocus()) playPauseButton.requestFocus()
+		nextButton.contentDescription = label
+		nextButton.isVisible = label != null
 	}
 
 	fun setTitle(text: String?) {
@@ -71,11 +122,15 @@ class PlayerPanel(
 		}
 	}
 
-	fun showInteractive() {
+	fun showInteractive(focus: Focus = Focus.PLAY_PAUSE) {
 		isInteractive = true
 		previewPositionMs = null
 		show()
-		audioButton.requestFocus()
+		when (focus) {
+			Focus.TIMELINE -> timeBar.requestFocus()
+			Focus.PLAY_PAUSE -> playPauseButton.requestFocus()
+			Focus.TRACKS -> tracksButton.requestFocus()
+		}
 		scheduleHide(INTERACTIVE_TIMEOUT_MS)
 	}
 
@@ -96,6 +151,7 @@ class PlayerPanel(
 	}
 
 	fun hide() {
+		tracks.hide()
 		handler.removeCallbacks(hideRunnable)
 		handler.removeCallbacks(tickRunnable)
 		isInteractive = false
@@ -126,15 +182,18 @@ class PlayerPanel(
 		timeBar.setDuration(durationMs)
 		timeBar.setPosition(positionMs)
 		timeBar.setBufferedPosition(player.bufferedPosition)
-		position.text = formatTime(positionMs)
-		duration.text = formatTime(durationMs)
-		state.text = if (player.playWhenReady) "▶" else "❚❚"
+		time.text = time.context.getString(R.string.player_time, formatTime(positionMs), formatTime(durationMs))
+		// The button shows the action it performs
+		val playing = player.playWhenReady
+		playPauseButton.setImageResource(if (playing) R.drawable.ic_pause else R.drawable.ic_play)
+		playPauseButton.contentDescription = playPauseButton.context.getString(if (playing) R.string.player_pause else R.string.player_play)
 	}
 
 	private companion object {
 		const val TICK_MS = 500L
 		const val INFO_TIMEOUT_MS = 3_000L
 		const val INTERACTIVE_TIMEOUT_MS = 8_000L
+		const val TRACKS_GAP_DP = 16
 
 		fun formatTime(ms: Long): String {
 			val totalSeconds = (ms / 1000).coerceAtLeast(0)
