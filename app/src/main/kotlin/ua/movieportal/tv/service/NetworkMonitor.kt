@@ -4,10 +4,8 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
-import android.net.NetworkRequest
 import androidx.core.content.getSystemService
 import timber.log.Timber
-import ua.movieportal.tv.util.AndroidVersion
 
 /**
  * Watches the default network and reports when it (re)appears or changes, so the WebSocket can reconnect
@@ -45,14 +43,7 @@ class NetworkMonitor(context: Context, private val onNetworkChanged: () -> Unit)
 
 	fun start() {
 		currentNetwork = connectivityManager.activeNetwork
-		if (AndroidVersion.isAtLeastN) {
-			connectivityManager.registerDefaultNetworkCallback(callback)
-		} else {
-			val request = NetworkRequest.Builder()
-				.addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-				.build()
-			connectivityManager.registerNetworkCallback(request, callback)
-		}
+		connectivityManager.registerDefaultNetworkCallback(callback)
 	}
 
 	fun stop() {

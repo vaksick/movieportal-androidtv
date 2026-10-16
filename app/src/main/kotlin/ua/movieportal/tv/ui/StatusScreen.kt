@@ -25,6 +25,7 @@ class StatusScreen(
 	private val settings: AppSettings,
 	private val onDisconnect: () -> Unit,
 	private val onRename: (String) -> Unit,
+	private val onClose: () -> Unit,
 ) {
 	private val context = root.context
 	private val connection = root.findViewById<TextView>(R.id.status_connection)
@@ -33,12 +34,14 @@ class StatusScreen(
 	private val account = root.findViewById<TextView>(R.id.status_account)
 	private val disconnect = root.findViewById<Button>(R.id.status_disconnect)
 	private val renameButton = root.findViewById<Button>(R.id.status_rename)
+	private val closeButton = root.findViewById<Button>(R.id.status_close)
 
 	private var job: Job? = null
 
 	init {
 		disconnect.setOnClickListener { confirmDisconnect() }
 		renameButton.setOnClickListener { showRenameDialog() }
+		closeButton.setOnClickListener { onClose() }
 	}
 
 	fun start() {
@@ -46,7 +49,8 @@ class StatusScreen(
 		device.text = context.getString(R.string.status_device, settings.deviceName)
 		server.text = context.getString(R.string.status_server, credentials?.serverUrl.orEmpty())
 		account.text = context.getString(R.string.status_account, credentials?.userName ?: credentials?.userId.orEmpty())
-		disconnect.requestFocus()
+		// A harmless default: an accidental OK must not disconnect the device
+		closeButton.requestFocus()
 
 		job?.cancel()
 		job = scope.launch {
@@ -66,6 +70,8 @@ class StatusScreen(
 			.setPositiveButton(R.string.status_disconnect) { _, _ -> onDisconnect() }
 			.setNegativeButton(R.string.cancel, null)
 			.show()
+			.getButton(AlertDialog.BUTTON_NEGATIVE)
+			.requestFocus()
 	}
 
 	/** The device name defaults to the TV's system name; it can be changed here without the setup flow. */

@@ -71,7 +71,7 @@ class MainActivity : ComponentActivity() {
 			onAuthenticated = { show(Screen.STATUS) },
 			onChangeServer = ::chooseServer,
 		)
-		statusScreen = StatusScreen(statusView, lifecycleScope, app.settings, ::disconnect, ::rename)
+		statusScreen = StatusScreen(statusView, lifecycleScope, app.settings, ::disconnect, ::rename, ::finish)
 		setupPermissions = PermissionsPanel(this, findViewById(R.id.setup_permissions))
 		statusPermissions = PermissionsPanel(this, findViewById(R.id.status_permissions))
 

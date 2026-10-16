@@ -1,5 +1,6 @@
 package ua.movieportal.tv.player
 
+import android.annotation.SuppressLint
 import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
@@ -133,10 +134,10 @@ class PlayerActivity : ComponentActivity() {
 		RemoteHub.activePlayer = playerToken
 		PlayerLauncher.cancelNotification(this)
 
-		// Back closes the panel first, then stops playback and returns to the idle screen
+		// Back hides a visible panel first, then stops playback and returns to the idle screen
 		onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
 			override fun handleOnBackPressed() {
-				if (panel.isVisible && panel.isInteractive) panel.hide()
+				if (panel.isVisible) panel.hide()
 				else close(failed = false, returnToMain = true)
 			}
 		})
@@ -534,14 +535,27 @@ class PlayerActivity : ComponentActivity() {
 		}
 	}
 
+	// Android 16+ delivers Back to the dialog through OnBackInvokedDispatcher and never sends the key; the key listener
+	// below only matters on older TVs, where the stray Back release reached the activity
+	@SuppressLint("GestureBackNavigation")
 	private fun showStreamDialog(title: Int, labels: List<String>, checked: Int, onSelected: (Int) -> Unit) {
-		AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+		val dialog = AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
 			.setTitle(title)
 			.setSingleChoiceItems(labels.toTypedArray(), checked) { dialog, which ->
 				dialog.dismiss()
 				onSelected(which)
 			}
-			.show()
+			.create()
+		// Some remotes close the dialog on Back down and the activity then gets the matching Back up, which stopped
+		// playback: the dialog consumes both halves of the key and closes on release
+		dialog.setOnKeyListener { _, keyCode, event ->
+			if (keyCode != KeyEvent.KEYCODE_BACK) return@setOnKeyListener false
+			if (event.action == KeyEvent.ACTION_UP && !event.isCanceled) dialog.cancel()
+			true
+		}
+		// Back to the panel the dialog was opened from (it may have timed out while the dialog had the keys)
+		dialog.setOnDismissListener { if (!closing) panel.showInteractive() }
+		dialog.show()
 	}
 
 	private fun streamLabel(stream: MediaStream): String {

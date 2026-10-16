@@ -331,6 +331,14 @@
             android:orientation="horizontal">
 
             <Button
+                android:id="@+id/status_close"
+                style="@style/Widget.MoviePortal.Button"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="16dp"
+                android:text="@string/status_close" />
+
+            <Button
                 android:id="@+id/status_rename"
                 style="@style/Widget.MoviePortal.Button"
                 android:layout_width="wrap_content"

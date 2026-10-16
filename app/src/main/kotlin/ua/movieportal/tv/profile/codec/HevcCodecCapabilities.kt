@@ -38,25 +38,22 @@ class HevcCodecCapabilities(
 	)
 
 	fun supportsHevcDolbyVision(): Boolean =
-		AndroidVersion.isAtLeastN &&
-			query.hasCodecForMime(MIME_DOLBY_VISION)
+		query.hasCodecForMime(MIME_DOLBY_VISION)
 
 	fun supportsHevcDolbyVisionEL(): Boolean =
-		AndroidVersion.isAtLeastN &&
-			query.hasDecoder(
-				MIME_DOLBY_VISION,
-				CodecProfileLevel.DolbyVisionProfileDvheDtb,
-				CodecProfileLevel.DolbyVisionLevelHd24,
-			) &&
+		query.hasDecoder(
+			MIME_DOLBY_VISION,
+			CodecProfileLevel.DolbyVisionProfileDvheDtb,
+			CodecProfileLevel.DolbyVisionLevelHd24,
+		) &&
 			query.supportsMultiInstance(MIME_HEVC)
 
 	fun supportsHevcHDR10(): Boolean =
-		AndroidVersion.isAtLeastN &&
-			query.hasDecoder(
-				MIME_HEVC,
-				CodecProfileLevel.HEVCProfileMain10HDR10,
-				CodecProfileLevel.HEVCMainTierLevel4,
-			)
+		query.hasDecoder(
+			MIME_HEVC,
+			CodecProfileLevel.HEVCProfileMain10HDR10,
+			CodecProfileLevel.HEVCMainTierLevel4,
+		)
 
 	fun supportsHevcHDR10Plus(): Boolean =
 		AndroidVersion.isAtLeastQ &&

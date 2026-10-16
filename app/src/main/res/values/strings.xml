@@ -77,6 +77,7 @@
     <string name="status_offline">Немає мережі</string>
     <string name="status_stopped">Служба зупинена</string>
     <string name="status_hint">Запустіть фільм у порталі кнопкою «Відтворити на…» і виберіть цей пристрій.</string>
+    <string name="status_close">Закрити</string>
     <string name="status_disconnect">Відключити</string>
     <string name="status_rename">Перейменувати</string>
     <string name="status_rename_title">Назва пристрою</string>
