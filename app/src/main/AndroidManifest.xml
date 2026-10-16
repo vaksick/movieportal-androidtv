@@ -16,6 +16,8 @@
 
     <!-- Opening the player from the background (Android 10+) -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <!-- Wakes the TV from the screensaver / ambient mode when the portal starts playback -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <!-- TV only: Google Play offers the app to Android TV / Google TV devices, not to phones -->
     <uses-feature

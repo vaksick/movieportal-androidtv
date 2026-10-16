@@ -58,7 +58,7 @@ class TrackPanel(root: View) {
 
 		// Start on the current audio track (or the first column that has anything)
 		val column = if (audioColumn.childCount > 0) audioColumn else subtitleColumn
-		column.selectedRow()?.requestFocus() ?: column.getChildAt(0)?.requestFocus()
+		column.selectedRow()?.requestFocusFromTouch() ?: column.getChildAt(0)?.requestFocusFromTouch()
 	}
 
 	/** Moves the check mark after a selection without rebuilding the rows (focus stays where it is). */
@@ -121,12 +121,15 @@ class TrackPanel(root: View) {
 			View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
 			View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
 		)
-		val overflow = container.measuredHeight - maxHeightPx
-		if (overflow <= 0) return
-		listOf(audioScroll, subtitleScroll).forEach { scroll ->
-			val limit = (scroll.measuredHeight - overflow).coerceAtLeast(dp(MIN_LIST_DP))
-			if (scroll.measuredHeight > limit) scroll.updateLayoutParams { height = limit }
-		}
+		if (container.measuredHeight <= maxHeightPx) return
+
+		// Every column gets the same room for its list; only a list taller than that scrolls (a short one keeps its
+		// natural height instead of shrinking along with the long one)
+		val scrolls = listOf(audioScroll, subtitleScroll).filter { it.column.isVisible }
+		if (scrolls.isEmpty()) return
+		val chrome = container.measuredHeight - scrolls.maxOf { it.measuredHeight }
+		val listMax = (maxHeightPx - chrome).coerceAtLeast(dp(MIN_LIST_DP))
+		scrolls.filter { it.measuredHeight > listMax }.forEach { it.updateLayoutParams { height = listMax } }
 	}
 
 	/** The column (title + list) that holds this list. */

@@ -5,6 +5,8 @@ import android.content.Context
 import android.content.Intent
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
+import androidx.core.content.getSystemService
 import androidx.core.app.NotificationManagerCompat
 import timber.log.Timber
 import ua.movieportal.tv.MoviePortalApp
@@ -24,6 +26,7 @@ import ua.movieportal.tv.util.AndroidVersion
  */
 object PlayerLauncher {
 	private const val VERIFY_DELAY_MS = 3_000L
+	private const val WAKE_DURATION_MS = 5_000L
 
 	private val handler = Handler(Looper.getMainLooper())
 
@@ -38,6 +41,8 @@ object PlayerLauncher {
 		val allowed = visible || overlay || !AndroidVersion.isAtLeastQ
 
 		Timber.i("Launching player (visible=$visible, overlay=$overlay, api=${android.os.Build.VERSION.SDK_INT})")
+		// The screensaver (ambient mode) is a window above every activity: the player would start hidden under it
+		wakeScreen(context)
 		if (allowed) {
 			try {
 				context.startActivity(intent)
@@ -51,6 +56,24 @@ object PlayerLauncher {
 			val pending = RemoteHub.playRequest.value?.id == requestId && RemoteHub.hasPendingPlayRequest
 			if (pending) showNotification(context, intent)
 		}, if (allowed) VERIFY_DELAY_MS else 0)
+	}
+
+	/**
+	 * Ends the screensaver / turns the screen on: a short wake lock with ACQUIRE_CAUSES_WAKEUP counts as user activity.
+	 * FULL_WAKE_LOCK is deprecated for keeping the screen on, which is not the point here (the player sets
+	 * keepScreenOn itself); it is still the public way to wake the screen up.
+	 */
+	@Suppress("DEPRECATION")
+	private fun wakeScreen(context: Context) {
+		val power = context.getSystemService<PowerManager>() ?: return
+		try {
+			power.newWakeLock(
+				PowerManager.FULL_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP or PowerManager.ON_AFTER_RELEASE,
+				"movieportal:play",
+			).acquire(WAKE_DURATION_MS)
+		} catch (err: RuntimeException) {
+			Timber.w(err, "Unable to wake the screen")
+		}
 	}
 
 	fun cancelNotification(context: Context) {

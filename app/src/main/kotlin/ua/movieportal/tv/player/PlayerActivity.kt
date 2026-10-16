@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -120,6 +121,14 @@ class PlayerActivity : ComponentActivity() {
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
 		window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+		// Started by the portal while the TV shows the screensaver or is locked: come to the front and turn the screen on
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+			setShowWhenLocked(true)
+			setTurnScreenOn(true)
+		} else {
+			@Suppress("DEPRECATION")
+			window.addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON)
+		}
 		setContentView(R.layout.activity_player)
 
 		val credentials = app.settings.credentials.value
@@ -173,6 +182,14 @@ class PlayerActivity : ComponentActivity() {
 		}
 		lifecycleScope.launch {
 			RemoteHub.playerCommands.collect(::onRemoteCommand)
+		}
+	}
+
+	// An open panel must keep a focused control (touch mode, a dialog that took the focus with it)
+	override fun onWindowFocusChanged(hasFocus: Boolean) {
+		super.onWindowFocusChanged(hasFocus)
+		if (hasFocus && ::panel.isInitialized && panel.isInteractive && !panel.isTracksVisible && currentFocus?.isShown != true) {
+			panel.showInteractive(PlayerPanel.Focus.PLAY_PAUSE)
 		}
 	}
 
@@ -667,7 +684,14 @@ class PlayerActivity : ComponentActivity() {
 
 	/** Back on plain video: confirm before stopping, "continue" is focused so an accidental OK keeps playing. */
 	private fun confirmStop() {
-		val dialog = ConfirmDialog.create(this, R.string.player_stop_confirm, R.string.player_stop, R.string.player_continue) {
+		// Left alone for a minute (remote put down, accidental Back) the dialog closes and playback just goes on
+		val dialog = ConfirmDialog.create(
+			this,
+			message = R.string.player_stop_confirm,
+			confirm = R.string.player_stop,
+			cancel = R.string.player_continue,
+			autoCancelSeconds = STOP_CONFIRM_TIMEOUT_S,
+		) {
 			close(failed = false, returnToMain = true)
 		}
 		showDialog(dialog)
@@ -817,6 +841,7 @@ class PlayerActivity : ComponentActivity() {
 		private const val SEEK_COMMIT_DELAY_MS = 700L
 		private const val MEDIA_KEY_SEEK_MS = 30_000L
 		private const val BUTTON_SEEK_MS = 10_000L
+		private const val STOP_CONFIRM_TIMEOUT_S = 60
 
 		fun intent(context: Context): Intent = Intent(context, PlayerActivity::class.java)
 			.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

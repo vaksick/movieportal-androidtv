@@ -102,7 +102,7 @@ class PlayerPanel(
 
 	/** Label of the "next" button, or null to hide it (nothing follows the current item). */
 	fun setNext(label: String?) {
-		if (label == null && nextButton.hasFocus()) playPauseButton.requestFocus()
+		if (label == null && nextButton.hasFocus()) playPauseButton.requestFocusFromTouch()
 		nextButton.contentDescription = label
 		nextButton.isVisible = label != null
 	}
@@ -127,9 +127,9 @@ class PlayerPanel(
 		previewPositionMs = null
 		show()
 		when (focus) {
-			Focus.TIMELINE -> timeBar.requestFocus()
-			Focus.PLAY_PAUSE -> playPauseButton.requestFocus()
-			Focus.TRACKS -> tracksButton.requestFocus()
+			Focus.TIMELINE -> timeBar.requestFocusFromTouch()
+			Focus.PLAY_PAUSE -> playPauseButton.requestFocusFromTouch()
+			Focus.TRACKS -> tracksButton.requestFocusFromTouch()
 		}
 		scheduleHide(INTERACTIVE_TIMEOUT_MS)
 	}

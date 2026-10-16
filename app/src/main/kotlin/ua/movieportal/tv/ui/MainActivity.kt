@@ -113,6 +113,33 @@ class MainActivity : ComponentActivity() {
 		statusPermissions.refresh()
 	}
 
+	/**
+	 * Safety net for a screen without focus (touch mode after a mouse/pointer remote, focus lost to a hidden view):
+	 * the D-pad must always have a highlighted control to start from.
+	 */
+	override fun onWindowFocusChanged(hasFocus: Boolean) {
+		super.onWindowFocusChanged(hasFocus)
+		if (hasFocus && currentFocus?.isShown != true) focusDefault()
+	}
+
+	// A D-pad key on a screen without focus (left in touch mode) reaches the activity and would do nothing at all
+	override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+		if (keyCode in NAVIGATION_KEYS && currentFocus?.isShown != true) {
+			focusDefault()
+			return true
+		}
+		return super.onKeyDown(keyCode, event)
+	}
+
+	private fun focusDefault() {
+		when (screen) {
+			Screen.STATUS -> statusScreen.focusDefault()
+			else -> visibleScreenView()?.requestFocusFromTouch()
+		}
+	}
+
+	private fun visibleScreenView(): View? = listOf(discoveryView, setupView, quickConnectView, statusView).firstOrNull { it.isVisible }
+
 	override fun onStop() {
 		super.onStop()
 		// Stop polling while invisible; onStart restarts the current step
@@ -190,5 +217,16 @@ class MainActivity : ComponentActivity() {
 	private fun rename(name: String) {
 		app.settings.deviceName = name
 		statusScreen.start()
+	}
+
+	private companion object {
+		val NAVIGATION_KEYS = setOf(
+			KeyEvent.KEYCODE_DPAD_UP,
+			KeyEvent.KEYCODE_DPAD_DOWN,
+			KeyEvent.KEYCODE_DPAD_LEFT,
+			KeyEvent.KEYCODE_DPAD_RIGHT,
+			KeyEvent.KEYCODE_DPAD_CENTER,
+			KeyEvent.KEYCODE_ENTER,
+		)
 	}
 }

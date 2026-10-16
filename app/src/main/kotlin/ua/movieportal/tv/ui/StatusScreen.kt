@@ -49,13 +49,17 @@ class StatusScreen(
 		device.text = context.getString(R.string.status_device, settings.deviceName)
 		server.text = context.getString(R.string.status_server, credentials?.serverUrl.orEmpty())
 		account.text = context.getString(R.string.status_account, credentials?.userName ?: credentials?.userId.orEmpty())
-		// A harmless default: an accidental OK must not disconnect the device
-		closeButton.requestFocus()
+		focusDefault()
 
 		job?.cancel()
 		job = scope.launch {
 			RemoteHub.connectionState.collect(::render)
 		}
+	}
+
+	/** A harmless default: an accidental OK must not disconnect the device. */
+	fun focusDefault() {
+		closeButton.requestFocusFromTouch()
 	}
 
 	fun stop() {
@@ -65,7 +69,7 @@ class StatusScreen(
 
 	/** Shows the disconnect confirmation (button or the remote's menu key). */
 	fun confirmDisconnect() {
-		ConfirmDialog.create(context, R.string.status_disconnect_confirm, R.string.status_disconnect, R.string.cancel, onDisconnect)
+		ConfirmDialog.create(context, R.string.status_disconnect_confirm, R.string.status_disconnect, R.string.cancel, onConfirm = onDisconnect)
 			.show()
 	}
 

@@ -79,7 +79,7 @@ class QuickConnectScreen(
 	fun start() {
 		val serverUrl = settings.serverUrl ?: return
 		server.text = context.getString(R.string.qc_server, serverUrl)
-		changeServer.requestFocus()
+		changeServer.requestFocusFromTouch()
 
 		job?.cancel()
 		job = scope.launch { run(serverUrl) }

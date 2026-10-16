@@ -84,6 +84,7 @@
     <string name="status_rename_save">Зберегти</string>
     <string name="status_disconnect_confirm">Відключити пристрій від порталу? Потрібно буде знову прив\'язати його кодом.</string>
     <string name="cancel">Скасувати</string>
+    <string name="confirm_countdown">%1$s (%2$d)</string>
 
     <!-- Service and notifications -->
     <string name="channel_service">Зв\'язок з порталом</string>
