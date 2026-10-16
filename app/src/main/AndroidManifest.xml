@@ -17,9 +17,10 @@
     <!-- Opening the player from the background (Android 10+) -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
+    <!-- TV only: Google Play offers the app to Android TV / Google TV devices, not to phones -->
     <uses-feature
         android:name="android.software.leanback"
-        android:required="false" />
+        android:required="true" />
     <uses-feature
         android:name="android.hardware.touchscreen"
         android:required="false" />

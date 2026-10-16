@@ -84,7 +84,7 @@ Google Play використовує **Play App Signing**: застосунок 
   якщо загальна перевірка пройшла. Результат і причини видно в розділі форм-факторів.
 
 Що вже відповідає вимогам TV у маніфесті:
-- `android.software.leanback` має `required=false`, а `android.hardware.touchscreen` теж `required=false`;
+- `android.software.leanback` має `required=true` (лише ТВ: Play не пропонує застосунок телефонам), а `android.hardware.touchscreen` — `required=false`;
 - є активність з `LEANBACK_LAUNCHER`;
 - банер 320×180 лежить у `drawable-xhdpi/app_banner.png`;
 - немає апаратних вимог, яких бракує ТВ (камера, GPS тощо);

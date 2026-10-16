@@ -2,6 +2,12 @@
 
 Формат: [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/). У дужках — `versionCode` для Google Play.
 
+## [1.1.4] (6) — 2026-10-16
+
+### Змінено
+- Застосунок лише для Android TV / Google TV (`android.software.leanback` обов'язковий): Google Play більше не
+  пропонує його телефонам і планшетам.
+
 ## [1.1.3] (5) — 2026-10-16
 
 ### Виправлено
