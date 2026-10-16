@@ -109,7 +109,7 @@ class QuickConnectScreen(
 				Timber.w(err, "Quick Connect initiate failed")
 				// Jellyfin answers 401 (older versions 403) when Quick Connect is disabled
 				val disabled = err.httpStatus() in setOf(401, 403)
-				status.setText(if (disabled) R.string.qc_disabled else R.string.qc_connection_problem)
+				setStatus(if (disabled) R.string.qc_disabled else R.string.qc_connection_problem, isRevoked())
 				delay(if (disabled) DISABLED_RETRY_MS else RETRY_MS)
 				continue
 			}
@@ -192,14 +192,14 @@ class QuickConnectScreen(
 					400, 404 -> return false
 					// Quick Connect got disabled
 					401, 403 -> {
-						status.setText(R.string.qc_disabled)
+						setStatus(R.string.qc_disabled, isRevoked())
 						delay(DISABLED_RETRY_MS)
 						return false
 					}
 
 					else -> {
 						Timber.w(err, "Quick Connect poll failed")
-						status.setText(R.string.qc_connection_problem)
+						setStatus(R.string.qc_connection_problem, isRevoked())
 						problem = true
 						continue
 					}
@@ -207,7 +207,7 @@ class QuickConnectScreen(
 			}
 
 			if (problem) {
-				status.setText(R.string.qc_waiting)
+				setStatus(R.string.qc_waiting, isRevoked())
 				problem = false
 			}
 			if (state.authenticated) return true
@@ -218,7 +218,7 @@ class QuickConnectScreen(
 	}
 
 	private suspend fun authenticate(api: ApiClient, serverUrl: String, secret: String): Credentials? {
-		status.setText(R.string.qc_authenticating)
+		setStatus(R.string.qc_authenticating, isRevoked())
 		return try {
 			val result = withContext(Dispatchers.IO) {
 				api.userApi.authenticateWithQuickConnect(QuickConnectDto(secret = secret)).content
@@ -236,11 +236,14 @@ class QuickConnectScreen(
 			throw err
 		} catch (err: Exception) {
 			Timber.w(err, "Quick Connect authentication failed")
-			status.setText(R.string.qc_connection_problem)
+			setStatus(R.string.qc_connection_problem, isRevoked())
 			delay(RETRY_MS)
 			null
 		}
 	}
+
+	// The "access revoked" line stays above every status, including after a temporary error
+	private fun isRevoked() = settings.lastLogoutReason == LogoutReason.REVOKED
 
 	private fun setStatus(text: Int, revoked: Boolean) {
 		status.text = buildString {

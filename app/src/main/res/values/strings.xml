@@ -100,6 +100,7 @@
     <string name="player_error">Не вдалося відтворити: %1$s</string>
     <string name="player_audio">Звук</string>
     <string name="player_tracks">Звук і субтитри</string>
+    <string name="player_track_change_failed">Не вдалося змінити доріжку. Відтворення триває з попередньою.</string>
     <string name="player_subtitles">Субтитри</string>
     <string name="player_subtitles_off">Вимкнено</string>
     <string name="player_stream_unknown">Доріжка %1$d</string>

@@ -12,6 +12,7 @@ import androidx.core.view.isVisible
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.jellyfin.sdk.api.client.extensions.sessionApi
 import timber.log.Timber
@@ -205,7 +206,8 @@ class MainActivity : ComponentActivity() {
 		// Revoke the token on the server too (POST /Sessions/Logout), best effort
 		if (credentials != null) {
 			val api = app.jellyfin.createApi(credentials)
-			app.appScope.launch {
+			// SDK requests must run on IO (the SDK reads the response body on the calling dispatcher)
+			app.appScope.launch(Dispatchers.IO) {
 				runCatching { api.sessionApi.reportSessionEnded() }
 					.onFailure { Timber.w(it, "Logout request failed") }
 			}

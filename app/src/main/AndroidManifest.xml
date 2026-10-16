@@ -74,6 +74,11 @@
                 android:value="Keeps the Jellyfin session WebSocket open so a self-hosted media portal can start playback on this TV (remote playback receiver)." />
         </service>
 
+        <!-- Alarm that restarts the receiver service after Android refused a background restart (Android 12+) -->
+        <receiver
+            android:name=".service.ServiceRecoveryReceiver"
+            android:exported="false" />
+
         <receiver
             android:name=".service.BootReceiver"
             android:exported="true">

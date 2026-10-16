@@ -4,6 +4,7 @@ import android.os.Handler
 import android.os.Looper
 import android.view.KeyEvent
 import android.view.View
+import android.view.ViewGroup
 import android.widget.ImageButton
 import android.widget.TextView
 import androidx.core.view.isVisible
@@ -83,6 +84,9 @@ class PlayerPanel(
 		onSubtitle: (Int) -> Unit,
 	) {
 		showInteractive(Focus.TRACKS)
+		// The control panel under the columns takes no focus while they are open: ←/→ at an outer column or ↓ under
+		// a short one has nowhere to go, so the focus stays in the columns until Back
+		(panel as ViewGroup).descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
 		val rootView = panel.rootView
 		val gap = (TRACKS_GAP_DP * rootView.resources.displayMetrics.density).toInt()
 		// Bottom of the track panel just above the title: the timeline and the buttons stay visible
@@ -96,8 +100,13 @@ class PlayerPanel(
 
 	/** Back in the track panel: close it and return to the button that opened it. */
 	fun closeTracks() {
-		tracks.hide()
+		hideTracks()
 		showInteractive(Focus.TRACKS)
+	}
+
+	private fun hideTracks() {
+		tracks.hide()
+		(panel as ViewGroup).descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS
 	}
 
 	/** Label of the "next" button, or null to hide it (nothing follows the current item). */
@@ -151,7 +160,7 @@ class PlayerPanel(
 	}
 
 	fun hide() {
-		tracks.hide()
+		hideTracks()
 		handler.removeCallbacks(hideRunnable)
 		handler.removeCallbacks(tickRunnable)
 		isInteractive = false

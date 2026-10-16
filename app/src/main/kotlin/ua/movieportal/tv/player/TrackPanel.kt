@@ -68,7 +68,6 @@ class TrackPanel(root: View) {
 	}
 
 	fun hide() {
-		container.clearFocus()
 		container.isVisible = false
 	}
 

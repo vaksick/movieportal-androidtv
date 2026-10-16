@@ -34,6 +34,10 @@ object TrackMapper {
 			return if (index == stream.audioStreamIndex) Action.Apply { } else Action.Restart
 		}
 
+		val target = stream.audioStreams.firstOrNull { it.index == index } ?: return Action.Unavailable
+		// An external audio file is not part of the direct-play stream: the server has to add it
+		if (target.isExternal) return Action.Restart
+
 		val position = stream.audioStreams.filter { !it.isExternal }.indexOfFirst { it.index == index }
 		val groups = tracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO }
 		val group = groups.getOrNull(position) ?: return Action.Unavailable

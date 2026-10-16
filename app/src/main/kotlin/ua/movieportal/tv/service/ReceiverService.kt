@@ -55,12 +55,21 @@ class ReceiverService : Service() {
 	private var socket: SessionSocket? = null
 	private var heartbeatJob: Job? = null
 
+	// startForeground succeeded: only then the service notification may be posted/updated
+	private var isForeground = false
+	// Could not become a foreground service: stopping, recovery is scheduled
+	private var givingUp = false
+
 	override fun onBind(intent: Intent?): IBinder? = null
 
 	override fun onCreate() {
 		super.onCreate()
 		Notifications.createChannels(this)
-		enterForeground(getString(R.string.notification_connecting))
+		if (!enterForeground(getString(R.string.notification_connecting))) {
+			giveUp()
+			return
+		}
+		ServiceRecovery.reset(this)
 
 		volume = VolumeController(this)
 		networkMonitor = NetworkMonitor(this) { socket?.reconnectNow() }
@@ -86,18 +95,37 @@ class ReceiverService : Service() {
 	}
 
 	override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+		if (givingUp) return START_NOT_STICKY
 		// Called again for every start request and after a sticky restart (intent == null)
-		enterForeground(getString(R.string.notification_connecting))
+		if (!isForeground && !enterForeground(getString(R.string.notification_connecting))) {
+			giveUp()
+			return START_NOT_STICKY
+		}
 		return START_STICKY
 	}
 
 	override fun onDestroy() {
 		socket?.stop()
 		heartbeatJob?.cancel()
-		networkMonitor.stop()
+		if (::networkMonitor.isInitialized) networkMonitor.stop()
 		scope.cancel()
 		RemoteHub.setConnectionState(ConnectionState.Stopped)
+		// A notification posted by updateNotification() is not removed together with the foreground state
+		NotificationManagerCompat.from(this).cancel(Notifications.ID_SERVICE)
 		super.onDestroy()
+	}
+
+	/**
+	 * Restarted from the background (sticky restart after the process was killed) Android 12+ may refuse the
+	 * foreground state. A plain background service would be killed about a minute later without notice, so stop
+	 * now (the UI shows "stopped") and let [ServiceRecovery] try again from an alarm.
+	 */
+	private fun giveUp() {
+		if (givingUp) return
+		givingUp = true
+		RemoteHub.setConnectionState(ConnectionState.Stopped)
+		ServiceRecovery.schedule(this)
+		stopSelf()
 	}
 
 	private fun connect(credentials: Credentials, deviceName: String) {
@@ -115,16 +143,20 @@ class ReceiverService : Service() {
 			accessToken = credentials.accessToken,
 			deviceId = app.settings.deviceId,
 			authorizationHeader = { app.jellyfin.authorizationHeader(credentials.accessToken) },
-			scope = scope,
+			parentScope = scope,
 			callbacks = object : SessionSocket.Callbacks {
 				override fun onStateChanged(state: ConnectionState) = RemoteHub.setConnectionState(state)
 
+				// Callbacks of a replaced socket (rename, new credentials) must not touch the new session
 				override suspend fun onConnected() {
+					if (api !== this@ReceiverService.api) return
 					registerCapabilities(api)
-					startHeartbeat(api)
+					if (api === this@ReceiverService.api) startHeartbeat(api)
 				}
 
-				override suspend fun onCommand(command: RemoteCommand) = handleCommand(command)
+				override suspend fun onCommand(command: RemoteCommand) {
+					if (api === this@ReceiverService.api) handleCommand(command)
+				}
 
 				override suspend fun isTokenRevoked(): Boolean = checkTokenRevoked(api)
 
@@ -229,6 +261,7 @@ class ReceiverService : Service() {
 
 	@SuppressLint("MissingPermission")
 	private fun updateNotification(state: ConnectionState) {
+		if (!isForeground) return
 		val text = when (state) {
 			ConnectionState.Connected -> getString(R.string.notification_connected)
 			ConnectionState.Connecting -> getString(R.string.notification_connecting)
@@ -240,29 +273,37 @@ class ReceiverService : Service() {
 		}
 	}
 
-	private fun enterForeground(text: String) {
+	/** @return false when Android refused the foreground state. */
+	private fun enterForeground(text: String): Boolean {
 		val notification = Notifications.service(this, text)
-		try {
+		isForeground = try {
 			if (AndroidVersion.isAtLeastU) {
 				startForeground(Notifications.ID_SERVICE, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
 			} else {
 				startForeground(Notifications.ID_SERVICE, notification)
 			}
+			true
 		} catch (err: IllegalStateException) {
 			// ForegroundServiceStartNotAllowedException (Android 12+) when restarted from the background
 			Timber.e(err, "Unable to enter the foreground state")
+			false
+		} catch (err: SecurityException) {
+			Timber.e(err, "Unable to enter the foreground state")
+			false
 		}
+		return isForeground
 	}
 
 	companion object {
 		private const val HEARTBEAT_INTERVAL_MS = 4 * 60 * 1000L
 
-		fun start(context: Context) {
-			try {
-				ContextCompat.startForegroundService(context, Intent(context, ReceiverService::class.java))
-			} catch (err: IllegalStateException) {
-				Timber.e(err, "Unable to start the receiver service")
-			}
+		/** @return false when Android refused to start a foreground service from here (background start, 12+). */
+		fun start(context: Context): Boolean = try {
+			ContextCompat.startForegroundService(context, Intent(context, ReceiverService::class.java))
+			true
+		} catch (err: IllegalStateException) {
+			Timber.e(err, "Unable to start the receiver service")
+			false
 		}
 
 		fun stop(context: Context) {

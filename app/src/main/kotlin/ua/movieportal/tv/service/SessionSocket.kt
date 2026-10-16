@@ -6,6 +6,8 @@ import android.os.SystemClock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -38,9 +40,14 @@ class SessionSocket(
 	private val accessToken: String,
 	private val deviceId: String,
 	private val authorizationHeader: () -> String,
-	private val scope: CoroutineScope,
+	parentScope: CoroutineScope,
 	private val callbacks: Callbacks,
 ) {
+	// Everything this socket starts (callbacks, keep-alive) is a child of this scope, so stop() also cancels
+	// callbacks still running for the old connection (e.g. capabilities with an old device name after a rename).
+	// A socket is used once: after stop() a new instance is created.
+	private val scope = CoroutineScope(parentScope.coroutineContext + SupervisorJob(parentScope.coroutineContext[Job]))
+
 	interface Callbacks {
 		fun onStateChanged(state: ConnectionState)
 
@@ -82,7 +89,7 @@ class SessionSocket(
 	}
 
 	fun stop() {
-		job?.cancel()
+		scope.cancel()
 		job = null
 		currentSocket?.close(NORMAL_CLOSURE, "client stopped")
 		currentSocket = null
@@ -261,7 +268,7 @@ class SessionSocket(
 		private const val HTTP_FORBIDDEN = 403
 		private const val PING_INTERVAL_S = 30L
 		private const val MIN_KEEP_ALIVE_S = 10
-		private const val OFFLINE_RECHECK_MS = 30_000L
+		private const val OFFLINE_RECHECK_MS = 10_000L
 		private const val MAX_BACKOFF_S = 60
 		private const val STABLE_CONNECTION_MS = 10_000L
 
