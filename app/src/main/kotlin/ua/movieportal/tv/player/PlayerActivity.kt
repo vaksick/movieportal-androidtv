@@ -2,12 +2,16 @@ package ua.movieportal.tv.player
 
 import android.annotation.SuppressLint
 import android.app.AlertDialog
+import android.app.KeyguardManager
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import android.view.KeyEvent
 import android.view.View
 import android.view.WindowManager
@@ -15,6 +19,8 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.annotation.OptIn
+import androidx.core.content.ContextCompat
+import androidx.core.content.getSystemService
 import androidx.core.net.toUri
 import androidx.core.view.isVisible
 import androidx.lifecycle.Lifecycle
@@ -129,9 +135,25 @@ class PlayerActivity : ComponentActivity() {
 	private var hasBeenResumed = false
 	private var reachedReady = false
 	private var closeAfterStopPending = false
+	private var closeAfterStopReason = ""
 	private val closeAfterStop = Runnable {
 		closeAfterStopPending = false
-		if (!closing) close(failed = false, returnToMain = false)
+		if (closing) return@Runnable
+		Timber.w("Closing the hidden player: $closeAfterStopReason")
+		close(failed = false, returnToMain = false)
+	}
+
+	// Screen on/off and unlock: the hidden-start countdown only runs while the screen is on (TV woken from standby)
+	private var screenReceiverRegistered = false
+	private val screenReceiver = object : BroadcastReceiver() {
+		override fun onReceive(context: Context, intent: Intent) {
+			Timber.i("Screen event ${intent.action} (player resumed before: $hasBeenResumed, ready: $reachedReady)")
+			when (intent.action) {
+				// Screen went off before the player ever came to the front: wait for the next screen on
+				Intent.ACTION_SCREEN_OFF -> if (!hasBeenResumed) cancelCloseAfterStop()
+				else -> if (!isStartedNow() && !closeAfterStopPending) scheduleHiddenClose("screen on, player still hidden")
+			}
+		}
 	}
 
 	// Seeking with the remote: steps accumulate while the key is held and are committed once
@@ -178,7 +200,7 @@ class PlayerActivity : ComponentActivity() {
 		panel = PlayerPanel(
 			findViewById(android.R.id.content),
 			player,
-			onPlayPause = { setPlaying(!player.playWhenReady) },
+			onPlayPause = { togglePlaying() },
 			onRewind = { seekBy(-BUTTON_SEEK_MS) },
 			onForward = { seekBy(BUTTON_SEEK_MS) },
 			onNext = ::skipToNext,
@@ -188,6 +210,18 @@ class PlayerActivity : ComponentActivity() {
 		skipButton = SkipButton(findViewById(R.id.player_skip), ::onSkip)
 
 		RemoteHub.activePlayer = playerToken
+		Timber.i("Player created (screen on: ${isScreenInteractive()})")
+		ContextCompat.registerReceiver(
+			this,
+			screenReceiver,
+			IntentFilter().apply {
+				addAction(Intent.ACTION_SCREEN_ON)
+				addAction(Intent.ACTION_SCREEN_OFF)
+				addAction(Intent.ACTION_USER_PRESENT)
+			},
+			ContextCompat.RECEIVER_NOT_EXPORTED,
+		)
+		screenReceiverRegistered = true
 		PlayerLauncher.cancelNotification(this)
 
 		// Back hides a visible panel first; on plain video it asks before stopping (a stray press must not end playback)
@@ -229,7 +263,12 @@ class PlayerActivity : ComponentActivity() {
 
 	override fun onResume() {
 		super.onResume()
-		hasBeenResumed = true
+		if (!hasBeenResumed) {
+			hasBeenResumed = true
+			Timber.i("Player in front for the first time (wanted playing: $wantPlaying)")
+			// Nothing plays before the player is visible; now apply what the portal / the remote asked for
+			if (::player.isInitialized) player.playWhenReady = wantPlaying
+		}
 		cancelCloseAfterStop()
 	}
 
@@ -238,14 +277,35 @@ class PlayerActivity : ComponentActivity() {
 		if (isChangingConfigurations || closing || !::player.isInitialized) return
 		// Leaving the player (Home key, another app on top) ends the playback, but only if the player does not come
 		// back within a short grace period. Until the stream is ready this is ignored: the player is often started
-		// behind the fading screensaver; reaching READY while hidden closes it after a longer grace period.
-		if (reachedReady) scheduleCloseAfterStop(if (hasBeenResumed) STOP_GRACE_MS else HIDDEN_START_GRACE_MS)
+		// behind the fading screensaver, or while the TV is still waking up from standby (see HiddenPlayerPolicy).
+		scheduleHiddenClose("player stopped")
 	}
 
-	private fun scheduleCloseAfterStop(delayMs: Long) {
+	/** Starts the close countdown for a player that is not in front, if [HiddenPlayerPolicy] says so. */
+	private fun scheduleHiddenClose(reason: String) {
+		val interactive = isScreenInteractive()
+		val delay = HiddenPlayerPolicy.closeDelayMs(hasBeenResumed, reachedReady, interactive)
+		if (delay == null) {
+			Timber.i("Hidden player kept open ($reason; resumed: $hasBeenResumed, ready: $reachedReady, screen on: $interactive)")
+			return
+		}
+		scheduleCloseAfterStop(delay, "$reason, not back within ${delay / 1000.0}s (resumed before: $hasBeenResumed)")
+	}
+
+	private fun scheduleCloseAfterStop(delayMs: Long, reason: String) {
 		handler.removeCallbacks(closeAfterStop)
 		handler.postDelayed(closeAfterStop, delayMs)
 		closeAfterStopPending = true
+		closeAfterStopReason = reason
+	}
+
+	private fun isStartedNow() = lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+
+	/** Screen on and not locked (standby, screen off and keyguard do not count). */
+	private fun isScreenInteractive(): Boolean {
+		val interactive = getSystemService<PowerManager>()?.isInteractive != false
+		val locked = getSystemService<KeyguardManager>()?.isKeyguardLocked == true
+		return interactive && !locked
 	}
 
 	private fun cancelCloseAfterStop() {
@@ -255,6 +315,10 @@ class PlayerActivity : ComponentActivity() {
 
 	override fun onDestroy() {
 		handler.removeCallbacksAndMessages(null)
+		if (screenReceiverRegistered) {
+			unregisterReceiver(screenReceiver)
+			screenReceiverRegistered = false
+		}
 		if (::player.isInitialized) {
 			stopCurrent(failed = false)
 			panel.release()
@@ -388,7 +452,8 @@ class PlayerActivity : ComponentActivity() {
 				.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
 				.build()
 			player.setMediaItem(buildMediaItem(resolved), startTicks / PlaybackReporter.TICKS_PER_MS)
-			player.playWhenReady = wantPlaying
+			// Not before the player has been in front: a player still behind the waking screen must not play invisibly
+			player.playWhenReady = wantPlaying && hasBeenResumed
 			player.prepare()
 		}
 	}
@@ -604,7 +669,7 @@ class PlayerActivity : ComponentActivity() {
 		val itemId = stream?.itemId ?: return
 		restarting = true
 		restoreOnRestartFailure = restore
-		wantPlaying = player.playWhenReady
+		if (hasBeenResumed) wantPlaying = player.playWhenReady
 		val positionTicks = player.currentPosition * PlaybackReporter.TICKS_PER_MS
 		Timber.i("Restarting stream at ${positionTicks / PlaybackReporter.TICKS_PER_SECOND}s")
 		load(itemId, positionTicks, transcodeOnly)
@@ -622,9 +687,7 @@ class PlayerActivity : ComponentActivity() {
 				Player.STATE_READY -> {
 					reachedReady = true
 					// Ready while hidden and no close scheduled yet (onStop came before READY): do not play invisibly for long
-					if (!lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED) && !closeAfterStopPending) {
-						scheduleCloseAfterStop(if (hasBeenResumed) STOP_GRACE_MS else HIDDEN_START_GRACE_MS)
-					}
+					if (!isStartedNow() && !closeAfterStopPending) scheduleHiddenClose("ready while hidden")
 					if (!started) {
 						started = true
 						reporter.start(snapshot())
@@ -652,6 +715,8 @@ class PlayerActivity : ComponentActivity() {
 		}
 
 		override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+			// Keep the wish in sync with changes the player makes itself (e.g. audio focus loss)
+			if (hasBeenResumed) wantPlaying = playWhenReady
 			panel.onPlayingStateChanged()
 			if (started) reportProgress()
 		}
@@ -767,7 +832,7 @@ class PlayerActivity : ComponentActivity() {
 			PlayerCommand.Stop -> close(failed = false, returnToMain = true)
 			PlayerCommand.Pause -> setPlaying(false)
 			PlayerCommand.Unpause -> setPlaying(true)
-			PlayerCommand.PlayPause -> setPlaying(!player.playWhenReady)
+			PlayerCommand.PlayPause -> togglePlaying()
 			is PlayerCommand.Seek -> {
 				// The portal's position wins over a remote-key seek that is still pending
 				handler.removeCallbacks(commitSeek)
@@ -804,9 +869,13 @@ class PlayerActivity : ComponentActivity() {
 		}
 	}
 
+	/** Play/pause toggle; before the player was ever in front it toggles the wanted state. */
+	private fun togglePlaying() = setPlaying(!(if (hasBeenResumed) player.playWhenReady else wantPlaying))
+
 	private fun setPlaying(playing: Boolean) {
 		wantPlaying = playing
-		player.playWhenReady = playing
+		// Before the first onResume only the wish is stored (Pause/Unpause from the portal while the TV wakes up)
+		player.playWhenReady = playing && hasBeenResumed
 	}
 
 	private fun setAudio(index: Int, allowRestart: Boolean) {
@@ -989,7 +1058,7 @@ class PlayerActivity : ComponentActivity() {
 		when (event.keyCode) {
 			KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER,
 			KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_HEADSETHOOK -> {
-				if (down && event.repeatCount == 0) setPlaying(!player.playWhenReady)
+				if (down && event.repeatCount == 0) togglePlaying()
 			}
 
 			KeyEvent.KEYCODE_MEDIA_PLAY -> if (down) setPlaying(true)
@@ -1050,7 +1119,7 @@ class PlayerActivity : ComponentActivity() {
 			KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> {
 				if (down && event.repeatCount == 0) {
 					commitSeekNow()
-					setPlaying(!player.playWhenReady)
+					togglePlaying()
 				}
 			}
 
@@ -1091,11 +1160,6 @@ class PlayerActivity : ComponentActivity() {
 		private const val MEDIA_KEY_SEEK_MS = 30_000L
 		private const val BUTTON_SEEK_MS = 10_000L
 		private const val STOP_CONFIRM_TIMEOUT_S = 60
-
-		// onStop after the player was in front: close unless it comes back within this time
-		private const val STOP_GRACE_MS = 2_500L
-		// Stream ready while the player never came to the front (or is hidden again)
-		private const val HIDDEN_START_GRACE_MS = 10_000L
 
 		private const val SKIP_CHECK_INTERVAL_MS = 500L
 		private val SKIPPABLE_SEGMENTS = listOf(
