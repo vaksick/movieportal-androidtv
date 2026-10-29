@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Wide screens (TV, phone in landscape): buttons in a row, QR code next to the text -->
+<resources>
+    <style name="Layout.MoviePortal.ButtonRow" parent="">
+        <item name="android:orientation">horizontal</item>
+    </style>
+
+    <style name="Widget.MoviePortal.Button.Row">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginEnd">16dp</item>
+    </style>
+
+    <style name="Layout.MoviePortal.QrScreen" parent="">
+        <item name="android:orientation">horizontal</item>
+        <item name="android:gravity">center_vertical</item>
+    </style>
+
+    <style name="Layout.MoviePortal.QrText" parent="">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:layout_marginStart">@dimen/qr_text_gap</item>
+    </style>
+</resources>

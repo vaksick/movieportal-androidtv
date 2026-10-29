@@ -53,6 +53,28 @@
         <item name="android:nextFocusUp">@id/player_timebar</item>
     </style>
 
+    <!-- Layouts that stack on narrow (portrait phone) screens and line up side by side from 600dp (values-w600dp) -->
+    <style name="Layout.MoviePortal.ButtonRow" parent="">
+        <item name="android:orientation">vertical</item>
+    </style>
+
+    <style name="Widget.MoviePortal.Button.Row">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginBottom">12dp</item>
+    </style>
+
+    <style name="Layout.MoviePortal.QrScreen" parent="">
+        <item name="android:orientation">vertical</item>
+        <item name="android:gravity">center_horizontal</item>
+    </style>
+
+    <style name="Layout.MoviePortal.QrText" parent="">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">@dimen/qr_text_gap</item>
+    </style>
+
     <style name="Widget.MoviePortal.Input" parent="android:Widget.DeviceDefault.EditText">
         <item name="android:background">@drawable/bg_input</item>
         <item name="android:textColor">@color/text_primary</item>

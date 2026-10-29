@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Pairing QR code: ~42% of a 1080p TV screen height, scannable with a phone from about 3 m -->
-    <dimen name="qr_size">420dp</dimen>
+    <!-- Phone-sized defaults; the TV values are in values-w900dp-h500dp -->
+    <dimen name="qr_size">240dp</dimen>
+    <dimen name="screen_padding_horizontal">24dp</dimen>
+    <dimen name="screen_padding_vertical">16dp</dimen>
+    <dimen name="qr_text_gap">24dp</dimen>
     <dimen name="dialog_padding">24dp</dimen>
     <dimen name="track_column_width">380dp</dimen>
 </resources>

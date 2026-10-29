@@ -2,10 +2,10 @@
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:paddingStart="96dp"
-    android:paddingTop="48dp"
-    android:paddingEnd="96dp"
-    android:paddingBottom="48dp">
+    android:paddingStart="@dimen/screen_padding_horizontal"
+    android:paddingTop="@dimen/screen_padding_vertical"
+    android:paddingEnd="@dimen/screen_padding_horizontal"
+    android:paddingBottom="@dimen/screen_padding_vertical">
 
     <!-- Step 1: automatic server discovery on the LAN -->
     <LinearLayout
@@ -180,14 +180,19 @@
         </LinearLayout>
     </ScrollView>
 
-    <!-- Step 2: Quick Connect pairing (QR code + digits) -->
-    <LinearLayout
+    <!-- Step 2: Quick Connect pairing (QR code + digits); scrolls on small phone screens -->
+    <ScrollView
         android:id="@+id/screen_quick_connect"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
+        android:fillViewport="true"
+        android:scrollbars="none"
         android:visibility="gone">
+
+    <LinearLayout
+        style="@style/Layout.MoviePortal.QrScreen"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
 
         <!-- White frame around the code keeps contrast on the dark theme -->
         <ImageView
@@ -199,10 +204,7 @@
             android:scaleType="centerInside" />
 
         <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="48dp"
-            android:layout_weight="1"
+            style="@style/Layout.MoviePortal.QrText"
             android:orientation="vertical">
 
             <TextView
@@ -264,14 +266,21 @@
                 android:text="@string/qc_change_server" />
         </LinearLayout>
     </LinearLayout>
+    </ScrollView>
 
-    <!-- Step 3: waiting for commands -->
-    <LinearLayout
+    <!-- Step 3: waiting for commands; scrolls on small phone screens -->
+    <ScrollView
         android:id="@+id/screen_status"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:orientation="vertical"
+        android:fillViewport="true"
+        android:scrollbars="none"
         android:visibility="gone">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
 
         <TextView
             style="@style/Text.MoviePortal.Title"
@@ -326,32 +335,26 @@
             android:layout_weight="1" />
 
         <LinearLayout
-            android:layout_width="wrap_content"
+            style="@style/Layout.MoviePortal.ButtonRow"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal">
+            android:layout_marginTop="16dp">
 
             <Button
                 android:id="@+id/status_close"
-                style="@style/Widget.MoviePortal.Button"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginEnd="16dp"
+                style="@style/Widget.MoviePortal.Button.Row"
                 android:text="@string/status_close" />
 
             <Button
                 android:id="@+id/status_rename"
-                style="@style/Widget.MoviePortal.Button"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginEnd="16dp"
+                style="@style/Widget.MoviePortal.Button.Row"
                 android:text="@string/status_rename" />
 
             <Button
                 android:id="@+id/status_disconnect"
-                style="@style/Widget.MoviePortal.Button"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                style="@style/Widget.MoviePortal.Button.Row"
                 android:text="@string/status_disconnect" />
         </LinearLayout>
     </LinearLayout>
+    </ScrollView>
 </FrameLayout>

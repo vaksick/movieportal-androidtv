@@ -1,6 +1,7 @@
 package ua.movieportal.tv.player
 
 import android.annotation.SuppressLint
+import android.app.ActivityManager
 import android.app.AlertDialog
 import android.app.KeyguardManager
 import android.content.BroadcastReceiver
@@ -34,6 +35,7 @@ import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
@@ -109,6 +111,7 @@ class PlayerActivity : ComponentActivity() {
 	private var restarting = false
 	private var applyTrackSelection = false
 	private var triedTranscodeFallback = false
+	private var networkRetries = 0
 	private var wantPlaying = true
 	private var volumeBeforeMute = 1f
 
@@ -351,6 +354,7 @@ class PlayerActivity : ComponentActivity() {
 
 		return ExoPlayer.Builder(this)
 			.setRenderersFactory(renderersFactory)
+			.setLoadControl(createLoadControl())
 			.setTrackSelector(DefaultTrackSelector(this))
 			.setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory, extractorsFactory))
 			.setAudioAttributes(
@@ -360,6 +364,23 @@ class PlayerActivity : ComponentActivity() {
 					.build(),
 				true,
 			)
+			.build()
+	}
+
+	/**
+	 * Media3's default buffer may hold ~140 MB of video in the Java heap; low-memory TVs (Xiaomi Mi TV / Mi Box give
+	 * apps 128–192 MB) ran out of memory a few minutes into high-bitrate files. The buffer is capped at a quarter of
+	 * the heap the app may use, and the byte limit wins over the time targets.
+	 */
+	private fun createLoadControl(): DefaultLoadControl {
+		val heapMb = getSystemService<ActivityManager>()?.largeMemoryClass ?: FALLBACK_HEAP_MB
+		val bufferBytes = (heapMb.toLong() * BYTES_PER_MB / HEAP_SHARE_FOR_BUFFER)
+			.coerceIn(MIN_BUFFER_BYTES, MAX_BUFFER_BYTES)
+			.toInt()
+		Timber.i("Player buffer: ${bufferBytes / BYTES_PER_MB} MB (heap $heapMb MB)")
+		return DefaultLoadControl.Builder()
+			.setTargetBufferBytes(bufferBytes)
+			.setPrioritizeTimeOverSizeThresholds(false)
 			.build()
 	}
 
@@ -377,6 +398,7 @@ class PlayerActivity : ComponentActivity() {
 		selectedAudio = request.audioStreamIndex
 		selectedSubtitle = request.subtitleStreamIndex
 		triedTranscodeFallback = false
+		networkRetries = 0
 		wantPlaying = true
 		panel.setTitle(null)
 
@@ -685,6 +707,8 @@ class PlayerActivity : ComponentActivity() {
 
 			when (playbackState) {
 				Player.STATE_READY -> {
+					// Playing again: a later network error gets a fresh set of retries
+					networkRetries = 0
 					reachedReady = true
 					// Ready while hidden and no close scheduled yet (onStop came before READY): do not play invisibly for long
 					if (!isStartedNow() && !closeAfterStopPending) scheduleHiddenClose("ready while hidden")
@@ -728,6 +752,16 @@ class PlayerActivity : ComponentActivity() {
 		override fun onPlayerError(error: PlaybackException) {
 			Timber.e(error, "Player error")
 			val current = stream
+			// Network hiccup (Wi-Fi drop, server/transcoder timeout): resume from the same place instead of closing
+			if (current != null && error.isNetworkError() && networkRetries < MAX_NETWORK_RETRIES) {
+				networkRetries++
+				Timber.w("Network error ${error.errorCodeName}, retry $networkRetries/$MAX_NETWORK_RETRIES")
+				handler.postDelayed(
+					{ if (!closing) restartStream(transcodeOnly = triedTranscodeFallback) },
+					NETWORK_RETRY_DELAY_MS * networkRetries,
+				)
+				return
+			}
 			if (current != null && current.playMethod != PlayMethod.TRANSCODE && !triedTranscodeFallback) {
 				// Direct play / remux failed (codec the TV can not decode after all): let the server transcode instead
 				triedTranscodeFallback = true
@@ -1154,12 +1188,25 @@ class PlayerActivity : ComponentActivity() {
 
 	// endregion
 
+	private fun PlaybackException.isNetworkError() =
+		errorCode in PlaybackException.ERROR_CODE_IO_UNSPECIFIED..PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT ||
+			errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS ||
+			errorCode == PlaybackException.ERROR_CODE_TIMEOUT
+
 	companion object {
 		private const val PROGRESS_INTERVAL_MS = 10_000L
 		private const val SEEK_COMMIT_DELAY_MS = 700L
 		private const val MEDIA_KEY_SEEK_MS = 30_000L
 		private const val BUTTON_SEEK_MS = 10_000L
 		private const val STOP_CONFIRM_TIMEOUT_S = 60
+
+		private const val MAX_NETWORK_RETRIES = 3
+		private const val NETWORK_RETRY_DELAY_MS = 2_000L
+		private const val FALLBACK_HEAP_MB = 128
+		private const val BYTES_PER_MB = 1024L * 1024
+		private const val HEAP_SHARE_FOR_BUFFER = 4
+		private const val MIN_BUFFER_BYTES = 16L * 1024 * 1024
+		private const val MAX_BUFFER_BYTES = 96L * 1024 * 1024
 
 		private const val SKIP_CHECK_INTERVAL_MS = 500L
 		private val SKIPPABLE_SEGMENTS = listOf(
