@@ -65,6 +65,7 @@ import ua.movieportal.tv.MoviePortalApp
 import ua.movieportal.tv.R
 import ua.movieportal.tv.jellyfin.ServerAuthInterceptor
 import ua.movieportal.tv.profile.createDeviceProfile
+import ua.movieportal.tv.profile.maxDisplaySize
 import ua.movieportal.tv.remote.PlayRequest
 import ua.movieportal.tv.remote.PlayerCommand
 import ua.movieportal.tv.remote.RemoteHub
@@ -121,6 +122,9 @@ class PlayerActivity : ComponentActivity() {
 	private var loadJob: Job? = null
 	private var progressJob: Job? = null
 	private var closing = false
+
+	/** The idle screen was on the TV when the portal started the player: return to it after the video. */
+	private var returnToIdleScreen = false
 
 	// Media segments (skip intro/credits) of the current item and the position check that shows the button
 	private var segmentsJob: Job? = null
@@ -181,6 +185,8 @@ class PlayerActivity : ComponentActivity() {
 			window.addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON)
 		}
 		setContentView(R.layout.activity_player)
+		// Read before the idle screen below the player gets onStop
+		returnToIdleScreen = MainActivity.isOnScreen
 
 		val credentials = app.settings.credentials.value
 		if (credentials == null || !RemoteHub.hasPendingPlayRequest) {
@@ -192,7 +198,7 @@ class PlayerActivity : ComponentActivity() {
 		deviceId = app.settings.deviceId
 		api = app.jellyfin.createApi(credentials)
 		userId = requireNotNull(credentials.userId.toUUIDOrNull())
-		resolver = StreamResolver(api, userId) { deviceProfile }
+		resolver = StreamResolver(api, userId, { deviceProfile }, maxDisplaySize(this))
 		reporter = PlaybackReporter(api, app.appScope, deviceId)
 
 		player = buildPlayer(credentials.serverUrl, credentials.accessToken)
@@ -837,7 +843,11 @@ class PlayerActivity : ComponentActivity() {
 		close(failed = true, returnToMain = true)
 	}
 
-	/** Stop playback, report it and leave the player (back to the idle screen when [returnToMain]). */
+	/**
+	 * Stop playback, report it and leave the player. Back to the idle screen only when [returnToMain] and the idle
+	 * screen was open when the portal started the video; otherwise the TV returns to what it showed before (the app
+	 * was closed: the launcher or another app), also when the idle screen is still in the task after Home.
+	 */
 	private fun close(failed: Boolean, returnToMain: Boolean) {
 		if (closing) return
 		closing = true
@@ -845,11 +855,8 @@ class PlayerActivity : ComponentActivity() {
 		activeDialog = null
 		releaseHub()
 		stopCurrent(failed)
-		// Launched from the background the player is alone in its task: show the idle screen behind it
-		if (returnToMain && isTaskRoot) {
-			startActivity(Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-		}
-		finish()
+		if (returnToMain && returnToIdleScreen) finish()
+		else finishAndRemoveTask()
 	}
 
 	private fun releaseHub() {
@@ -1073,8 +1080,6 @@ class PlayerActivity : ComponentActivity() {
 	/** Long Back: stop (normal "stopped" report) and go to the TV launcher, not to the idle screen. */
 	private fun exitToLauncher() {
 		close(failed = false, returnToMain = false)
-		// The idle screen may be below the player in the same task
-		finishAffinity()
 	}
 
 	/** Keys not consumed by a focused view; inside the interactive panel only media keys control playback. */

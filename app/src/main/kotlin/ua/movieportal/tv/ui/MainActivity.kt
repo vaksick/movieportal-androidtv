@@ -15,12 +15,14 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.jellyfin.sdk.api.client.extensions.sessionApi
 import timber.log.Timber
 import ua.movieportal.tv.MoviePortalApp
 import ua.movieportal.tv.R
 import ua.movieportal.tv.data.LogoutReason
 import ua.movieportal.tv.discovery.ServerDiscovery
+import ua.movieportal.tv.profile.deviceCapabilities
 import ua.movieportal.tv.service.ReceiverService
 
 /**
@@ -80,6 +82,12 @@ class MainActivity : ComponentActivity() {
 		setupPermissions = PermissionsPanel(this, findViewById(R.id.setup_permissions))
 		statusPermissions = PermissionsPanel(this, findViewById(R.id.status_permissions))
 
+		lifecycleScope.launch {
+			val capabilities = withContext(Dispatchers.Default) { deviceCapabilities(applicationContext) }
+			CapabilitiesCard(findViewById(R.id.status_capabilities), findViewById(R.id.status_capabilities_table))
+				.show(capabilities)
+		}
+
 		// The TV keyboard stays open when D-pad focus moves from a text field to a button: close it explicitly
 		window.decorView.viewTreeObserver.addOnGlobalFocusChangeListener { oldFocus, newFocus ->
 			if (oldFocus is EditText && newFocus !is EditText) {
@@ -108,6 +116,7 @@ class MainActivity : ComponentActivity() {
 
 	override fun onStart() {
 		super.onStart()
+		isOnScreen = true
 		show(initialScreen())
 	}
 
@@ -163,6 +172,7 @@ class MainActivity : ComponentActivity() {
 
 	override fun onStop() {
 		super.onStop()
+		isOnScreen = false
 		// Stop polling while invisible; onStart restarts the current step
 		discoveryScreen.stop()
 		quickConnectScreen.stop()
@@ -247,8 +257,16 @@ class MainActivity : ComponentActivity() {
 		statusScreen.start()
 	}
 
-	private companion object {
-		val NAVIGATION_KEYS = setOf(
+	companion object {
+		/**
+		 * This screen is visible right now. The player checks it when the portal starts it: only then does it return
+		 * here after the video, otherwise it leaves to wherever the TV was (closed app, launcher, another app).
+		 */
+		@Volatile
+		var isOnScreen = false
+			private set
+
+		private val NAVIGATION_KEYS = setOf(
 			KeyEvent.KEYCODE_DPAD_UP,
 			KeyEvent.KEYCODE_DPAD_DOWN,
 			KeyEvent.KEYCODE_DPAD_LEFT,

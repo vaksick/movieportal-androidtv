@@ -1,5 +1,6 @@
 package ua.movieportal.tv.player
 
+import android.util.Size
 import androidx.media3.common.MimeTypes
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -15,6 +16,7 @@ import org.jellyfin.sdk.model.api.MediaStreamType
 import org.jellyfin.sdk.model.api.PlayMethod
 import org.jellyfin.sdk.model.api.PlaybackInfoDto
 import org.jellyfin.sdk.model.api.SubtitleDeliveryMethod
+import timber.log.Timber
 import java.util.UUID
 
 /**
@@ -69,6 +71,8 @@ class StreamResolver(
 	private val api: ApiClient,
 	private val userId: UUID,
 	private val deviceProfile: () -> DeviceProfile,
+	/** Screen size; a transcode is not made larger than this (null: no limit). */
+	private val maxTranscodeSize: Size? = null,
 ) {
 	class StreamException(message: String) : Exception(message)
 
@@ -131,11 +135,21 @@ class StreamResolver(
 
 			source.supportsTranscoding && source.transcodingUrl != null -> Triple(
 				PlayMethod.TRANSCODE,
-				api.createUrl(source.transcodingUrl!!, ignorePathParameters = true),
+				api.createUrl(
+					maxTranscodeSize?.let { TranscodeLimits.apply(source.transcodingUrl!!, it.width, it.height) }
+						?: source.transcodingUrl!!,
+					ignorePathParameters = true,
+				),
 				hlsMimeType(source),
 			)
 
 			else -> throw StreamException("No compatible stream")
+		}
+
+		// Why the server does not play the file as is (only the reason codes: the URL itself carries the api key)
+		if (playMethod != PlayMethod.DIRECT_PLAY) {
+			val reasons = source.transcodingUrl?.substringAfter("TranscodeReasons=", "")?.substringBefore('&').orEmpty()
+			Timber.i("Server ${playMethod.serialName}: reasons=${reasons.ifEmpty { "-" }} bitrate=${source.bitrate}")
 		}
 
 		val streams = source.mediaStreams.orEmpty()

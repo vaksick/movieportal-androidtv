@@ -78,6 +78,12 @@
     <string name="status_stopped">Служба зупинена</string>
     <string name="status_hint">Запустіть фільм у порталі кнопкою «Відтворити на…» і виберіть цей пристрій.</string>
     <string name="status_close">Закрити</string>
+
+    <!-- Capabilities summary in the corner of the setup screens -->
+    <string name="caps_title">Що вміє пристрій</string>
+    <string name="caps_video">Відео</string>
+    <string name="caps_audio">Звук</string>
+    <string name="caps_screen">Екран</string>
     <string name="status_disconnect">Відключити</string>
     <string name="status_rename">Перейменувати</string>
     <string name="status_rename_title">Назва пристрою</string>

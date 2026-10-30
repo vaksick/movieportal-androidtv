@@ -1,10 +1,15 @@
 package ua.movieportal.tv.profile
 
 import android.content.Context
+import android.hardware.display.DisplayManager
 import android.media.MediaCodecList
+import android.util.Size
+import android.view.Display
 import androidx.annotation.OptIn
+import androidx.core.content.getSystemService
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.common.util.Util
 import androidx.media3.decoder.ffmpeg.FfmpegLibrary
 import org.jellyfin.sdk.model.api.CodecType
 import org.jellyfin.sdk.model.api.DeviceProfile
@@ -92,6 +97,26 @@ fun createDeviceProfile(context: Context): DeviceProfile = createDeviceProfile(
 	isTrueHDPrefEnabled = canPlayAudio(context, MimeTypes.AUDIO_TRUEHD),
 	pgsDirectPlay = true,
 )
+
+/**
+ * The largest picture the screen can show. Used to cap transcodes only: direct play of a larger file is fine, the TV
+ * scales it down.
+ *
+ * Many 4K TVs run their UI at 1080p and list only 1080p display modes (seen on Sony Bravia and Xiaomi Mi TV), so the
+ * display modes alone under-report the panel. Media3 also reads the panel size the vendors publish elsewhere
+ * (`sys.display-size` / `vendor.display-size` system properties, Sony's 4K panel feature); the larger answer wins.
+ */
+@OptIn(UnstableApi::class)
+fun maxDisplaySize(context: Context): Size? {
+	val display = context.getSystemService<DisplayManager>()?.getDisplay(Display.DEFAULT_DISPLAY) ?: return null
+	val modes = display.supportedModes.map { Size(it.physicalWidth, it.physicalHeight) }
+	val panel = Util.getCurrentDisplayModeSize(context, display).let { Size(it.x, it.y) }
+	return (modes + panel)
+		.filter { it.width > 0 && it.height > 0 }
+		.maxByOrNull { it.width.toLong() * it.height }
+		?.let { Size(maxOf(it.width, it.height), minOf(it.width, it.height)) }
+}
+
 
 internal fun createDeviceProfile(
 	mediaTest: MediaCodecCapabilitiesTest,
